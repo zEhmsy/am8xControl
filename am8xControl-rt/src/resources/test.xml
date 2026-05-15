@@ -1,0 +1,310 @@
+<TopologyImport>
+ <PanelData Type="AM-8200N">
+  <PanelLabel>CEENTRALE 1</PanelLabel>
+  <PanelNumber>1</PanelNumber>
+  <Device>
+   <LoopNumber>1</LoopNumber>
+   <PositionOnLoop>1</PositionOnLoop>
+   <Type>NFX(I)-OPT - PHOT</Type>
+   <Label>SENSORE OTTICO L1 C1</Label>
+   <ZoneAddress>1</ZoneAddress>
+   <ZoneLabel>SENSORI CENTRALE 1</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>0</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>1</LoopNumber>
+   <PositionOnLoop>2</PositionOnLoop>
+   <Type>NFX(I)-BEAM - BEAM</Type>
+   <Label>BARRIERA L1 C1</Label>
+   <ZoneAddress>1</ZoneAddress>
+   <ZoneLabel>SENSORI CENTRALE 1</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>0</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>1</LoopNumber>
+   <PositionOnLoop>3</PositionOnLoop>
+   <Type>NFX(I)-TDIFF - THER</Type>
+   <Label>SENSORE TERMICO L1 C1</Label>
+   <ZoneAddress>1</ZoneAddress>
+   <ZoneLabel>SENSORI CENTRALE 1</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>0</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>1</LoopNumber>
+   <PositionOnLoop>1</PositionOnLoop>
+   <Type>M720</Type>
+   <Label></Label>
+   <ZoneAddress></ZoneAddress>
+   <ZoneLabel></ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>1</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule>
+    <Module>
+     <Type>MON3</Type>
+     <Label>INGRESSO 1 L1 C1</Label>
+     <Number>1</Number>
+     <ZoneAddress>2</ZoneAddress>
+     <ZoneLabel>MODULI CENTRALE 1</ZoneLabel>
+    </Module>
+    <Module>
+     <Type>MON3</Type>
+     <Label>INGRESSO 2 L1 C1</Label>
+     <Number>2</Number>
+     <ZoneAddress>2</ZoneAddress>
+     <ZoneLabel>MODULI CENTRALE 1</ZoneLabel>
+    </Module>
+   </SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>1</LoopNumber>
+   <PositionOnLoop>2</PositionOnLoop>
+   <Type>M701 - CON</Type>
+   <Label>USCITA 1 L1 C1</Label>
+   <ZoneAddress>2</ZoneAddress>
+   <ZoneLabel>MODULI CENTRALE 1</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>1</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>2</LoopNumber>
+   <PositionOnLoop>1</PositionOnLoop>
+   <Type>NFX(I)-OPT - PHOT</Type>
+   <Label>SENSORE OTTICO  L2 C1</Label>
+   <ZoneAddress>1</ZoneAddress>
+   <ZoneLabel>SENSORI CENTRALE 1</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>0</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>2</LoopNumber>
+   <PositionOnLoop>2</PositionOnLoop>
+   <Type>NFX(I)-BEAM - BEAM</Type>
+   <Label>BARRIERA L2 C1</Label>
+   <ZoneAddress>1</ZoneAddress>
+   <ZoneLabel>SENSORI CENTRALE 1</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>0</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>2</LoopNumber>
+   <PositionOnLoop>3</PositionOnLoop>
+   <Type>NFX(I)-TDIFF - THER</Type>
+   <Label>SENSORE TERMICO L2 C1</Label>
+   <ZoneAddress>1</ZoneAddress>
+   <ZoneLabel>SENSORI CENTRALE 1</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>0</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>2</LoopNumber>
+   <PositionOnLoop>1</PositionOnLoop>
+   <Type>M720</Type>
+   <Label></Label>
+   <ZoneAddress></ZoneAddress>
+   <ZoneLabel></ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>1</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule>
+    <Module>
+     <Type>MON3</Type>
+     <Label>INGRESSO 1 L2 C1</Label>
+     <Number>1</Number>
+     <ZoneAddress>2</ZoneAddress>
+     <ZoneLabel>MODULI CENTRALE 1</ZoneLabel>
+    </Module>
+    <Module>
+     <Type>MON3</Type>
+     <Label>INGRESSO 2 L2 C1</Label>
+     <Number>2</Number>
+     <ZoneAddress>2</ZoneAddress>
+     <ZoneLabel>MODULI CENTRALE 1</ZoneLabel>
+    </Module>
+   </SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>2</LoopNumber>
+   <PositionOnLoop>2</PositionOnLoop>
+   <Type>M701 - CON</Type>
+   <Label>USCITA 1 L2 C1</Label>
+   <ZoneAddress>2</ZoneAddress>
+   <ZoneLabel>MODULI CENTRALE 1</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>1</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+ </PanelData>
+ <PanelData Type="AM-8200N">
+  <PanelLabel>CENTRALE 2</PanelLabel>
+  <PanelNumber>2</PanelNumber>
+  <Device>
+   <LoopNumber>1</LoopNumber>
+   <PositionOnLoop>1</PositionOnLoop>
+   <Type>NFX(I)-OPT - PHOT</Type>
+   <Label>SENSORE OTTICO  L1 C2</Label>
+   <ZoneAddress>3</ZoneAddress>
+   <ZoneLabel>SENSORI CENTRALE 2</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>0</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>1</LoopNumber>
+   <PositionOnLoop>2</PositionOnLoop>
+   <Type>NFX(I)-BEAM - BEAM</Type>
+   <Label>BARRIERA L1 C2</Label>
+   <ZoneAddress>3</ZoneAddress>
+   <ZoneLabel>SENSORI CENTRALE 2</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>0</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>1</LoopNumber>
+   <PositionOnLoop>3</PositionOnLoop>
+   <Type>NFX(I)-TDIFF - THER</Type>
+   <Label>SENSORE TERMICO L1 C2</Label>
+   <ZoneAddress>3</ZoneAddress>
+   <ZoneLabel>SENSORI CENTRALE 2</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>0</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>1</LoopNumber>
+   <PositionOnLoop>1</PositionOnLoop>
+   <Type>M720</Type>
+   <Label></Label>
+   <ZoneAddress></ZoneAddress>
+   <ZoneLabel></ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>1</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule>
+    <Module>
+     <Type>MON3</Type>
+     <Label>INGRESSO 1 L1 C2</Label>
+     <Number>1</Number>
+     <ZoneAddress>4</ZoneAddress>
+     <ZoneLabel>MODULI CENTRALE 2</ZoneLabel>
+    </Module>
+    <Module>
+     <Type>MON3</Type>
+     <Label>INGRESSO 2 L1 C2</Label>
+     <Number>2</Number>
+     <ZoneAddress>4</ZoneAddress>
+     <ZoneLabel>MODULI CENTRALE 2</ZoneLabel>
+    </Module>
+   </SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>1</LoopNumber>
+   <PositionOnLoop>2</PositionOnLoop>
+   <Type>M701 - CON</Type>
+   <Label>USCITA 1 L1 C2</Label>
+   <ZoneAddress>4</ZoneAddress>
+   <ZoneLabel>MODULI CENTRALE 2</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>1</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>2</LoopNumber>
+   <PositionOnLoop>1</PositionOnLoop>
+   <Type>NFX(I)-OPT - PHOT</Type>
+   <Label>SENSORE OTTICO L2 C2</Label>
+   <ZoneAddress>4</ZoneAddress>
+   <ZoneLabel>MODULI CENTRALE 2</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>0</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>2</LoopNumber>
+   <PositionOnLoop>2</PositionOnLoop>
+   <Type>NFX(I)-BEAM - BEAM</Type>
+   <Label>BARRIERA L2 C2</Label>
+   <ZoneAddress>4</ZoneAddress>
+   <ZoneLabel>MODULI CENTRALE 2</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>0</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>2</LoopNumber>
+   <PositionOnLoop>3</PositionOnLoop>
+   <Type>NFX(I)-TDIFF - THER</Type>
+   <Label>SENSORE TERMICO L2 C2</Label>
+   <ZoneAddress>4</ZoneAddress>
+   <ZoneLabel>MODULI CENTRALE 2</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>0</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>2</LoopNumber>
+   <PositionOnLoop>1</PositionOnLoop>
+   <Type>M720</Type>
+   <Label></Label>
+   <ZoneAddress></ZoneAddress>
+   <ZoneLabel></ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>1</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule>
+    <Module>
+     <Type>MON3</Type>
+     <Label>INGRESSO 1 L2 C2</Label>
+     <Number>1</Number>
+     <ZoneAddress>4</ZoneAddress>
+     <ZoneLabel>MODULI CENTRALE 2</ZoneLabel>
+    </Module>
+    <Module>
+     <Type>MON3</Type>
+     <Label>INGRESSO 2 L2 C2</Label>
+     <Number>2</Number>
+     <ZoneAddress>4</ZoneAddress>
+     <ZoneLabel>MODULI CENTRALE 2</ZoneLabel>
+    </Module>
+   </SubModule>
+  </Device>
+  <Device>
+   <LoopNumber>2</LoopNumber>
+   <PositionOnLoop>2</PositionOnLoop>
+   <Type>M701 - CON</Type>
+   <Label>USCITA 1 L2 C2</Label>
+   <ZoneAddress>4</ZoneAddress>
+   <ZoneLabel>MODULI CENTRALE 2</ZoneLabel>
+   <SerialNumber></SerialNumber>
+   <DeviceTypeID>1</DeviceTypeID>
+   <DeviceManufactureDate></DeviceManufactureDate>
+   <SubModule></SubModule>
+  </Device>
+ </PanelData>
+</TopologyImport>

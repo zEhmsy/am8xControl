@@ -1,0 +1,7 @@
+<types>
+  <type class="com.sitecVendor.am8xControl.wb.BAm8xNetworkManager" name="Am8xNetworkManager">
+    <agent default="true">
+      <on type="am8xControl:Am8xNetwork"/>
+    </agent>
+  </type>
+</types>

@@ -1,0 +1,8 @@
+<types>
+  <type class="com.sitecVendor.am8xControl.BAm8xNetwork"
+        name="Am8xNetwork"/>
+  <type class="com.sitecVendor.am8xControl.BAm8xDevice"
+        name="Am8xDevice"/>
+  <type class="com.sitecVendor.am8xControl.BAm8xDeviceFolder"
+        name="Am8xDeviceFolder"/>
+</types>
