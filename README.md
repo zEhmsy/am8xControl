@@ -9,7 +9,7 @@
   ![License](https://img.shields.io/badge/License-Apache%202.0-blue)
 </div>
 
-**am8xControl** è un modulo custom per Niagara Framework 4.15 che importa la topologia di una centrale antincendio **Notifier Serie AM-8200N** a partire dal file XML esportato dal tool di configurazione del pannello.
+**am8xControl** è un modulo custom per Niagara Framework 4.15 che importa la topologia di una centrale antincendio **Notifier Serie AM-8x00** a partire dal file XML esportato dal tool di configurazione del pannello.
 
 <img src="docs/discovery.png" alt="am8xControl view" width="1200"/>
 
