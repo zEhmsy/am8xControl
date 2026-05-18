@@ -1,19 +1,17 @@
 package com.sitecVendor.am8xControl;
 
+import com.tridium.ndriver.BNDevice;
 import javax.baja.nre.annotations.NiagaraType;
 import javax.baja.nre.annotations.NoSlotomatic;
 import javax.baja.sys.*;
 
 /**
- * Componente Niagara che rappresenta un singolo dispositivo (sensore / modulo)
- * scoperto sul loop Essernet di una centrale AM-8200N.
- *
- * <p>I valori sono valorizzati dal BAm8xNetwork al termine del Discovery XML;
- * sono visibili (READONLY) nel Property Sheet del Workbench.</p>
+ * Device Niagara che rappresenta un singolo sensore / modulo sulla centrale AM-8200N.
+ * Creato dalla Discovery View quando l'utente aggiunge un entry al database.
  */
 @NiagaraType
 @NoSlotomatic
-public class BAm8xDevice extends BComponent {
+public class BAm8xDevice extends BNDevice {
 
     public static final Property panelLabel =
             newProperty(Flags.SUMMARY | Flags.READONLY, "", null);
@@ -50,9 +48,6 @@ public class BAm8xDevice extends BComponent {
     public String getZoneLabel() { return getString(zoneLabel); }
     public void setZoneLabel(String v) { setString(zoneLabel, v, null); }
 
-    /**
-     * Popola il device dai dati di un descriptor.
-     */
     public void applyDescriptor(Am8xDeviceDescriptor d) {
         if (d == null) return;
         setPanelLabel(d.getPanelLabel());
@@ -63,6 +58,22 @@ public class BAm8xDevice extends BComponent {
         setZoneAddress(d.getZoneAddress());
         setZoneLabel(d.getZoneLabel());
     }
+
+    ////////////////////////////////////////////////////////////////
+    // BNDevice abstract
+    ////////////////////////////////////////////////////////////////
+
+    @Override
+    public Type getNetworkType() { return BAm8xNetwork.TYPE; }
+
+    @Override
+    public void doPing() throws Exception {
+        // Fase 2: nessuna connessione TCP attiva — stub
+    }
+
+    ////////////////////////////////////////////////////////////////
+    // Boilerplate
+    ////////////////////////////////////////////////////////////////
 
     @Override
     public Type getType() { return TYPE; }

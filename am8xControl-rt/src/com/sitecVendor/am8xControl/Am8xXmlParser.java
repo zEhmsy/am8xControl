@@ -91,14 +91,36 @@ public final class Am8xXmlParser {
                     int zoneAddr = parseInt(getChildText(device, "ZoneAddress"));
                     String zoneLabel = getChildText(device, "ZoneLabel");
 
-                    result.add(new Am8xDeviceDescriptor(
-                            panelType, panelLabel, loop, pos, type, label, zoneAddr, zoneLabel));
+                    Am8xDeviceDescriptor desc = new Am8xDeviceDescriptor(
+                            panelType, panelLabel, loop, pos, type, label, zoneAddr, zoneLabel);
+                    parseSubModules(device, desc);
+                    result.add(desc);
                 } catch (Exception e) {
                     LOG.log(Level.FINE, "Skipped malformed <Device> entry", e);
                 }
             }
         }
         return result;
+    }
+
+    private static void parseSubModules(Element device, Am8xDeviceDescriptor desc) {
+        NodeList subModuleList = device.getElementsByTagName("SubModule");
+        if (subModuleList.getLength() == 0) return;
+        Element subModule = (Element) subModuleList.item(0);
+        NodeList modules = subModule.getElementsByTagName("Module");
+        for (int i = 0; i < modules.getLength(); i++) {
+            Element mod = (Element) modules.item(i);
+            try {
+                String type     = getChildText(mod, "Type");
+                String label    = getChildText(mod, "Label");
+                int    number   = parseInt(getChildText(mod, "Number"));
+                int    zoneAddr = parseInt(getChildText(mod, "ZoneAddress"));
+                String zoneLabel = getChildText(mod, "ZoneLabel");
+                desc.addSubModule(new Am8xSubModuleDescriptor(type, label, number, zoneAddr, zoneLabel));
+            } catch (Exception e) {
+                LOG.log(Level.FINE, "Skipped malformed <Module> entry", e);
+            }
+        }
     }
 
     private static String getChildText(Element parent, String tagName) {

@@ -1,10 +1,14 @@
 package com.sitecVendor.am8xControl;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * Value object che rappresenta un dispositivo scoperto dal parsing
  * di un file XML di topologia esportato da una centrale AM-8200N.
  */
-public final class Am8xDeviceDescriptor {
+public class Am8xDeviceDescriptor {
 
     private final String panelType;
     private final String panelLabel;
@@ -14,6 +18,8 @@ public final class Am8xDeviceDescriptor {
     private final String label;
     private final int zoneAddress;
     private final String zoneLabel;
+
+    private final List<Am8xSubModuleDescriptor> subModules = new ArrayList<>();
 
     public Am8xDeviceDescriptor(String panelType,
                                 String panelLabel,
@@ -41,6 +47,10 @@ public final class Am8xDeviceDescriptor {
     public String getLabel() { return label; }
     public int getZoneAddress() { return zoneAddress; }
     public String getZoneLabel() { return zoneLabel; }
+
+    public void addSubModule(Am8xSubModuleDescriptor sm) { subModules.add(sm); }
+    public List<Am8xSubModuleDescriptor> getSubModules() { return Collections.unmodifiableList(subModules); }
+    public boolean hasSubModules() { return !subModules.isEmpty(); }
 
     /**
      * Identificativo univoco usato come nome slot Niagara.

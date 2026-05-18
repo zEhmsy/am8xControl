@@ -5,60 +5,127 @@
 
   ![Java](https://img.shields.io/badge/Java-8%2B-ED8B00?logo=openjdk&logoColor=white)
   ![Gradle](https://img.shields.io/badge/Gradle-Build-02303A?logo=gradle&logoColor=white)
-  ![Niagara](https://img.shields.io/badge/Niagara-Framework-blue)
+  ![Niagara](https://img.shields.io/badge/Niagara-4.15-blue)
   ![License](https://img.shields.io/badge/License-Apache%202.0-blue)
 </div>
 
-**am8xControl** è un modulo custom per Niagara Framework progettato per importare la topologia e i punti di una centrale antincendio **Notifier Serie 8000** a partire dal suo file di configurazione XML.
+**am8xControl** è un modulo custom per Niagara Framework 4.15 che importa la topologia di una centrale antincendio **Notifier Serie AM-8200N** a partire dal file XML esportato dal tool di configurazione del pannello.
 
-## 📌 Funzionalità
+<img src="docs/discovery.png" alt="am8xControl view" width="1200"/>
 
-Questo modulo non stabilisce una connessione attiva tramite protocolli come Modbus o BACnet. Funge invece da **base solida e scheletro strutturale** per la creazione di un driver completo o come utility di importazione offline. Le sue funzionalità principali includono:
+---
 
-- **Parsing XML:** Legge il file XML esportato dal tool di configurazione della centrale Notifier serie 8000.
-- **Creazione Alberatura:** Costruisce automaticamente la struttura dei dispositivi all'interno della station Niagara.
-- **Creazione Punti:** Genera dinamicamente i punti (`BAm8xDevice`) raggruppati in specifiche cartelle (`BAm8xDeviceFolder`) basate sull'etichetta della centrale (Panel Label).
-- **Offline Importer:** Permette di predisporre la grafica, i link, le logiche di allarme e le estensioni Niagara in modalità offline, prima ancora di avere il collegamento fisico o il driver di comunicazione funzionante sul campo, risparmiando preziose ore di messa in servizio.
+## Funzionalità (v2)
 
-Per avviare l'importazione, è sufficiente configurare la proprietà `xmlFilePath` sul componente `Am8xNetwork` e richiamare l'azione `discover`. Se il percorso è lasciato vuoto, il modulo caricherà un file di test XML incluso di default come risorsa.
+- **Discovery View nativa NDriver** — la topologia appare nel pannello Discovery del Device Manager esattamente come per qualsiasi altro driver Niagara standard.
+- **Colonne disco**: Panel, Loop, Pos, Type, Zone — visibili direttamente nel pannello Discovery senza configurazione aggiuntiva.
+- **M720 come gruppo espandibile** — i dispositivi M720 (contenitori di sub-moduli) appaiono come nodi espandibili; i loro sub-moduli (MON3, IN3, ecc.) possono essere aggiunti singolarmente.
+- **Nomi slot sanitizzati** — le etichette dal file XML vengono convertite automaticamente in nomi slot Niagara validi (spazi e caratteri speciali → underscore).
+- **Import selettivo** — si può aggiungere singolarmente ogni device o sub-modulo; il pulsante Add è disabilitato sui nodi gruppo (M720).
+- **Offline Importer** — predispone la struttura Niagara prima ancora del collegamento fisico alla centrale, risparmiando ore in fase di commissioning.
 
-## 🚀 Per gli Sviluppatori (Community Niagara)
+Per avviare la discovery configurare la proprietà `xmlFilePath` su `BAm8xNetwork` e cliccare **Discover** nel Device Manager. Se il campo è lasciato vuoto, il modulo usa il file XML di test incluso come risorsa.
 
-Questo progetto nasce con lo scopo di essere condiviso con la community di sviluppatori Niagara. Rappresenta un ottimo punto di partenza per chiunque desideri implementare un driver completo per le centrali Notifier o voglia imparare come strutturare l'importazione massiva di punti e dispositivi da file esterni.
+---
 
-Siete tutti invitati a contribuire per estendere le funzionalità, aggiungere il livello di comunicazione o migliorare il parser!
+## Changelog
 
-### 🛠 Come Contribuire (Branch e Pull Request)
+### v2.0 — NDriver Discovery View nativa
 
-Il flusso di lavoro per contribuire al progetto su GitHub è il seguente:
+Riscrittura completa del layer di presentazione. L'architettura segue ora il pattern NDriver ufficiale documentato in *NDriver Manager's Guide*.
 
-1. **Effettua il Fork del repository:** Clicca sul pulsante "Fork" in alto a destra nella pagina GitHub per creare una copia del progetto sul tuo account.
-2. **Clona il tuo Fork in locale:**
-   ```bash
-   git clone https://github.com/TUO_UTENTE/am8xControl.git
-   cd am8xControl
-   ```
-3. **Crea un nuovo Branch per la tua modifica:**
-   Usa un nome descrittivo per il branch (es. `feature/modbus-integration`, `bugfix/xml-parsing`).
-   ```bash
-   git checkout -b feature/nome-della-tua-feature
-   ```
-4. **Apporta le tue modifiche e compila il progetto:**
-   Assicurati che il codice venga compilato correttamente tramite Gradle.
-   ```bash
-   ./gradlew clean jar --parallel
-   ```
-5. **Fai il Commit e il Push:**
-   Aggiungi i file modificati, scrivi un messaggio di commit chiaro e invia le modifiche al tuo repository GitHub.
-   ```bash
-   git add .
-   git commit -m "Aggiunta la funzionalità X per il driver Notifier"
-   git push origin feature/nome-della-tua-feature
-   ```
-6. **Apri una Pull Request (PR):**
-   Vai sulla pagina GitHub del tuo fork. GitHub ti mostrerà un banner suggerendo di aprire una "Pull Request" verso il repository originale. Cliccalo, compila il form descrivendo accuratamente il problema risolto o la funzionalità aggiunta, e invia la richiesta.
-   Un maintainer revisionerà il codice e lo integrerà nel branch principale!
+**Cambiamenti principali rispetto a v1:**
 
-## 📦 Struttura del Modulo
-- `am8xControl-rt`: Modulo runtime che contiene la logica di parsing XML (`Am8xXmlParser`), i componenti Niagara (`BAm8xNetwork`, `BAm8xDeviceFolder`, `BAm8xDevice`) e la logica di base del driver.
-- `am8xControl-wb`: Modulo workbench contenente l'interfaccia utente e i componenti specifici per il software N4 Workbench.
+| Aspetto | v1 | v2 |
+|---|---|---|
+| Pattern discovery | `BJobService` custom + action `discover` | `BNDiscoveryJob.submit(null)` — infrastruttura NDriver nativa |
+| Presentazione risultati | Pannello generico / log | **Discovery View** con colonne Panel / Loop / Pos / Type / Zone |
+| Tipi Baja | `BAm8xDiscoveryEntry` senza `@NiagaraType` | `@NiagaraType @NoSlotomatic` + Baja properties con `SfUtil.incl()` per le colonne |
+| Proxy serialization | Non funzionante attraverso il proxy | `BAm8xDiscoveryEntry` è un tipo Niagara registrato, si serializza correttamente RT→WB |
+| Nomi slot | Potenziali nomi illegali con spazi | `getDiscoveryName()` sanitizza con `replaceAll("[^a-zA-Z0-9_]", "_")` |
+| M720 sub-moduli | Flat list | Nodi gruppo espandibili; sub-moduli come figli separati |
+| WB layer | `BAm8xNetworkManager` monolitico | `BAm8xDeviceManager` + `Am8xDeviceLearn` + `Am8xDeviceController` + `Am8xDeviceModel` |
+
+**Nuove classi:**
+
+| Classe | Modulo | Ruolo |
+|---|---|---|
+| `BAm8xDiscoveryEntry` | rt | Entry della Discovery View: `@NiagaraType`, Baja properties, `SfUtil.incl()` |
+| `BAm8xDiscoveryPreferences` | rt | Dichiara `getDiscoveryLeafType()` — richiesto dal framework NDriver |
+| `BAm8xLearnDevicesJob` | rt | Job di discovery tipizzato (`extends BNDiscoveryJob`) |
+| `Am8xSubModuleDescriptor` | rt | Value object per i sub-moduli `<SubModule><Module>` nell'XML |
+| `BAm8xDeviceManager` | wb | Device Manager NDriver — factory per Learn/Model/Controller |
+| `Am8xDeviceLearn` | wb | Colonne discovery, gestione gruppi M720, fix Name column |
+| `Am8xDeviceController` | wb | Controller NDriver (delegate default) |
+| `Am8xDeviceModel` | wb | Model NDriver (delegate default) |
+
+**Classi modificate:**
+
+- `BAm8xNetwork` — rimosso il vecchio job BJobService; aggiunto `submitDiscoveryJob()` e `getDiscoveryObjects()` pattern NDriver; rimossa proprietà `lastDiscoveryData`
+- `BAm8xDevice` — estende ora `BNDevice`; aggiunto `applyDescriptor()`
+- `Am8xDeviceDescriptor` — aggiunto supporto sub-moduli (`addSubModule`, `getSubModules`, `hasSubModules`)
+- `Am8xXmlParser` — aggiunto parsing `<SubModule><Module>` per dispositivi M720
+
+**Classi rimosse:**
+
+- `BAm8xNetworkManager` (wb) — sostituito da `BAm8xDeviceManager`
+
+---
+
+## Struttura del Modulo
+
+```
+am8xControl/
+├── am8xControl-rt/          # Runtime: logica di parsing, tipi Niagara
+│   └── src/com/sitecVendor/am8xControl/
+│       ├── BAm8xNetwork.java            # BNNetwork + BINDiscoveryHost
+│       ├── BAm8xDevice.java             # BNDevice — device importato
+│       ├── BAm8xDeviceFolder.java       # Cartella per raggruppamento per centrale
+│       ├── BAm8xDiscoveryEntry.java     # Entry @NiagaraType per Discovery View
+│       ├── BAm8xDiscoveryPreferences.java  # Preferenze discovery NDriver
+│       ├── BAm8xLearnDevicesJob.java    # Job discovery tipizzato
+│       ├── Am8xDeviceDescriptor.java    # Value object device (con sub-moduli)
+│       ├── Am8xSubModuleDescriptor.java # Value object sub-modulo M720
+│       └── Am8xXmlParser.java           # Parser XML topologia AM-8200N
+└── am8xControl-wb/          # Workbench: Device Manager e Discovery UI
+    └── src/com/sitecVendor/am8xControl/wb/
+        ├── BAm8xDeviceManager.java      # Device Manager NDriver
+        ├── Am8xDeviceLearn.java         # Colonne discovery + gestione gruppi
+        ├── Am8xDeviceController.java    # Controller device
+        └── Am8xDeviceModel.java         # Model device
+```
+
+---
+
+## Build
+
+```bash
+./gradlew clean build
+```
+
+Deploy manuale dei jar in `/opt/Niagara/<versione>/modules/` + restart del daemon.
+
+---
+
+## Per gli Sviluppatori (Community Niagara)
+
+Questo progetto è condiviso con la community Niagara come riferimento per implementare un driver con **Discovery View nativa NDriver**. È un punto di partenza solido per chiunque voglia:
+
+- imparare il pattern `BINDiscoveryHost` / `BNDiscoveryJob` / `BNDiscoveryLeaf`
+- capire come esporre colonne personalizzate nel pannello Discovery
+- gestire gerarchie di discovery (nodi gruppo + figli) con `NMgrLearn`
+
+### Come contribuire
+
+1. Fork del repository
+2. Crea un branch: `git checkout -b feature/nome-feature`
+3. Compila: `./gradlew clean jar --parallel`
+4. Commit + Push
+5. Apri una Pull Request descrivendo le modifiche
+
+---
+
+## Roadmap
+
+- **Fase 3** (in pianificazione) — Points Modbus automatici sotto ogni device all'import: `alarmState`, `faultState`, `statusLabel` con `BModbusClientProxyExt` e indirizzi calcolati da loop+posizione.
+- **Fase 4** — Polling live via connessione TCP/Modbus alla centrale AM-8200N.
