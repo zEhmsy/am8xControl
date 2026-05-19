@@ -15,13 +15,16 @@
 
 ---
 
-## Funzionalità (v2)
+## Funzionalità (v3)
 
 - **Discovery View nativa NDriver** — la topologia appare nel pannello Discovery del Device Manager esattamente come per qualsiasi altro driver Niagara standard.
 - **Colonne disco**: Panel, Loop, Pos, Type, Zone — visibili direttamente nel pannello Discovery senza configurazione aggiuntiva.
 - **M720 come gruppo espandibile** — i dispositivi M720 (contenitori di sub-moduli) appaiono come nodi espandibili; i loro sub-moduli (MON3, IN3, ecc.) possono essere aggiunti singolarmente.
 - **Nomi slot sanitizzati** — le etichette dal file XML vengono convertite automaticamente in nomi slot Niagara validi (spazi e caratteri speciali → underscore).
 - **Import selettivo** — si può aggiungere singolarmente ogni device o sub-modulo; il pulsante Add è disabilitato sui nodi gruppo (M720).
+- **Pulsante Match** — selezionando un device già presente nel database appare il pulsante Match al posto di Add; il matching è ricorsivo (trova device anche dentro `BNDeviceFolder`).
+- **Points Modbus automatici** — all'avvio ogni `BAm8xDevice` crea automaticamente 3 point figli (`alarm`, `fault`, `statusLabel`) con indirizzi Modbus pre-calcolati basati su loop e posizione.
+- **Indirizzi Modbus deterministici** — le formule seguono la specifica ufficiale AM-8x00: `sensor = loop×5000 + 2000 + pos`, `module = loop×5000 + modulePos×10 + channel`.
 - **Offline Importer** — predispone la struttura Niagara prima ancora del collegamento fisico alla centrale, risparmiando ore in fase di commissioning.
 
 Per avviare la discovery configurare la proprietà `xmlFilePath` su `BAm8xNetwork` e cliccare **Discover** nel Device Manager. Se il campo è lasciato vuoto, il modulo usa il file XML di test incluso come risorsa.
@@ -29,6 +32,22 @@ Per avviare la discovery configurare la proprietà `xmlFilePath` su `BAm8xNetwor
 ---
 
 ## Changelog
+
+### v3.0 — Points Modbus automatici + Match button
+
+**Nuove funzionalità:**
+
+- **`Am8xModbusAddressing`** — classe utility con formule Modbus deterministiche per sensori e sub-moduli M720. Non sono magic number: le formule sono derivate dalla specifica del pannello AM-8x00.
+- **`BAm8xDevice.ensurePoints()`** — chiamato da `started()`, crea automaticamente 3 point figli se non già presenti:
+  - `alarm` — `BBooleanPoint` con `BModbusClientBooleanProxyExt`, indirizzo calcolato
+  - `fault` — `BBooleanPoint` con `BModbusClientBooleanProxyExt`, indirizzo calcolato
+  - `statusLabel` — `BStringPoint` per etichetta stato testuale
+- **Logica di indirizzo**: sensori diretti usano `loop×5000+2000+pos`; sub-moduli M720 usano `loop×5000+modulePos×10+channel`; il campo `parentModulePos` su `BAm8xDevice` discrimina i due casi.
+- **`BAm8xNetwork.modbusNetworkOrd`** — property opzionale che punta alla `BModbusTcpNetwork` che gestisce il polling fisico della centrale.
+- **`Am8xDeviceLearn.isMatchable()`** — override del hook framework: abilita il pulsante **Match** per device già presenti nel DB senza riabilitare Add (che rischierebbe duplicati).
+- **Matching ricorsivo** — `matchesInTree()` trova device anche all'interno di `BNDeviceFolder`, necessario se i device vengono organizzati in cartelle.
+
+---
 
 ### v2.0 — NDriver Discovery View nativa
 
@@ -58,6 +77,7 @@ Riscrittura completa del layer di presentazione. L'architettura segue ora il pat
 | `Am8xDeviceLearn` | wb | Colonne discovery, gestione gruppi M720, fix Name column |
 | `Am8xDeviceController` | wb | Controller NDriver (delegate default) |
 | `Am8xDeviceModel` | wb | Model NDriver (delegate default) |
+| `Am8xModbusAddressing` | rt | Formule indirizzi Modbus per sensori e sub-moduli M720 |
 
 **Classi modificate:**
 
@@ -78,19 +98,20 @@ Riscrittura completa del layer di presentazione. L'architettura segue ora il pat
 am8xControl/
 ├── am8xControl-rt/          # Runtime: logica di parsing, tipi Niagara
 │   └── src/com/sitecVendor/am8xControl/
-│       ├── BAm8xNetwork.java            # BNNetwork + BINDiscoveryHost
-│       ├── BAm8xDevice.java             # BNDevice — device importato
+│       ├── BAm8xNetwork.java            # BNNetwork + BINDiscoveryHost + modbusNetworkOrd
+│       ├── BAm8xDevice.java             # BNDevice — device importato + ensurePoints()
 │       ├── BAm8xDeviceFolder.java       # Cartella per raggruppamento per centrale
 │       ├── BAm8xDiscoveryEntry.java     # Entry @NiagaraType per Discovery View
 │       ├── BAm8xDiscoveryPreferences.java  # Preferenze discovery NDriver
 │       ├── BAm8xLearnDevicesJob.java    # Job discovery tipizzato
 │       ├── Am8xDeviceDescriptor.java    # Value object device (con sub-moduli)
 │       ├── Am8xSubModuleDescriptor.java # Value object sub-modulo M720
+│       ├── Am8xModbusAddressing.java    # Formule indirizzi Modbus (sensori + moduli)
 │       └── Am8xXmlParser.java           # Parser XML topologia AM-8200N
 └── am8xControl-wb/          # Workbench: Device Manager e Discovery UI
     └── src/com/sitecVendor/am8xControl/wb/
         ├── BAm8xDeviceManager.java      # Device Manager NDriver
-        ├── Am8xDeviceLearn.java         # Colonne discovery + gestione gruppi
+        ├── Am8xDeviceLearn.java         # Colonne discovery + Match + gestione gruppi
         ├── Am8xDeviceController.java    # Controller device
         └── Am8xDeviceModel.java         # Model device
 ```
@@ -127,5 +148,5 @@ Questo progetto è condiviso con la community Niagara come riferimento per imple
 
 ## Roadmap
 
-- **Fase 3** (in pianificazione) — Points Modbus automatici sotto ogni device all'import: `alarmState`, `faultState`, `statusLabel` con `BModbusClientProxyExt` e indirizzi calcolati da loop+posizione.
-- **Fase 4** — Polling live via connessione TCP/Modbus alla centrale AM-8200N.
+- ~~**Fase 3** — Points Modbus automatici sotto ogni device~~  ✅ completata in v3.0
+- **Fase 4** — Polling live: collegamento di `BAm8xNetwork` a una `BModbusTcpNetwork` per aggiornamento automatico dei valori `alarm` / `fault` in run-time.
