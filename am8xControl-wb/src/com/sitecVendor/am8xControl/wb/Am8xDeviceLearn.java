@@ -10,6 +10,8 @@ import javax.baja.workbench.mgr.MgrTypeInfo;
 import javax.baja.sys.BComponent;
 import javax.baja.sys.BInteger;
 import javax.baja.sys.BString;
+import javax.baja.sys.BValue;
+import javax.baja.sys.Slot;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -72,6 +74,17 @@ public class Am8xDeviceLearn extends NMgrLearn {
     public void toRow(Object item, MgrEditRow row) {
         if (!(item instanceof BAm8xDiscoveryEntry)) return;
         BAm8xDiscoveryEntry entry = (BAm8xDiscoveryEntry) item;
+
+        // CRITICAL: framework NMgrLearn.toRow() normally calls entry.updateTarget(target)
+        // to populate the device-to-be-added. Our override bypasses super, so we must
+        // invoke it explicitly — otherwise the added device stays at default values.
+        BComponent target = row.getTarget();
+        if (target != null) {
+            try {
+                entry.updateTarget(target);
+            } catch (Exception ignore) {}
+        }
+
         MgrColumn[] cols = row.getColumns();
         for (int i = 0; i < cols.length; i++) {
             if (cols[i] instanceof MgrColumn.Name) continue; // name via setDefaultName
@@ -86,15 +99,39 @@ public class Am8xDeviceLearn extends NMgrLearn {
 
     @Override
     public MgrTypeInfo[] toTypes(Object item) {
-        if (item instanceof BAm8xDiscoveryEntry && !hasChildren(item))
-            return MgrTypeInfo.makeArray(BAm8xDevice.TYPE);
-        return new MgrTypeInfo[0];
+        if (!(item instanceof BAm8xDiscoveryEntry) || hasChildren(item))
+            return new MgrTypeInfo[0];
+        // Suppress Add for items that already exist in the DB.
+        // isMatchable() enables the Match button separately for those items.
+        if (getExisting(item) != null) return new MgrTypeInfo[0];
+        return MgrTypeInfo.makeArray(BAm8xDevice.TYPE);
+    }
+
+    @Override
+    public boolean isMatchable(Object item, BComponent component) {
+        // Match button enabled when the discovered item corresponds to this component.
+        if (!(item instanceof BAm8xDiscoveryEntry)) return false;
+        return matchesInTree((BAm8xDiscoveryEntry) item, component);
     }
 
     @Override
     public boolean isExisting(Object item, BComponent component) {
-        return item instanceof BAm8xDiscoveryEntry
-            && ((BAm8xDiscoveryEntry) item).isExisting(component);
+        if (!(item instanceof BAm8xDiscoveryEntry)) return false;
+        return matchesInTree((BAm8xDiscoveryEntry) item, component);
+    }
+
+    // Recurse into child components so devices inside BNDeviceFolder are found.
+    private static boolean matchesInTree(BAm8xDiscoveryEntry entry, BComponent comp) {
+        if (entry.isExisting(comp)) return true;
+        try {
+            for (Slot s : comp.getSlotsArray()) {
+                BValue child = comp.get(s.getName());
+                if (child instanceof BComponent) {
+                    if (matchesInTree(entry, (BComponent) child)) return true;
+                }
+            }
+        } catch (Exception ignore) {}
+        return false;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -124,8 +161,10 @@ public class Am8xDeviceLearn extends NMgrLearn {
         for (String record : records) {
             String[] f = record.split(BAm8xDiscoveryEntry.FIELD_SEP, -1);
             if (f.length < 5) continue;
-            int number   = safeInt(f[2]);
-            int zoneAddr = safeInt(f[3]);
+            int number    = safeInt(f[2]);
+            int zoneAddr  = safeInt(f[3]);
+            // field[5] = parent M720 positionOnLoop (added in v2)
+            int parentPos = f.length >= 6 ? safeInt(f[5]) : -1;
             BAm8xDiscoveryEntry child = new BAm8xDiscoveryEntry();
             child.setPanelType(parent.getPanelType());
             child.setPanelLabel(parent.getPanelLabel());
@@ -135,6 +174,7 @@ public class Am8xDeviceLearn extends NMgrLearn {
             child.setDeviceLabel(f[1]);
             child.setZoneAddress(zoneAddr);
             child.setZoneLabel(f[4]);
+            child.setParentModulePos(parentPos);
             children.add(child);
         }
         return children.toArray();

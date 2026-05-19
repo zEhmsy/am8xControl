@@ -25,6 +25,13 @@ dependencies {
   nre(":nre")
 
   api(":baja")
+  api(":control-rt")
+  api(":driver-rt")
+  api(":basicDriver-rt")
+  api(":ndriver-rt")
+  api(":modbusCore-rt")
+  api(":alarm-rt")
+  api(":gx-rt")
 }
 
 tasks.named<Bajadoc>("bajadoc") {

@@ -69,6 +69,12 @@ public class BAm8xDiscoveryEntry extends BNDiscoveryLeaf implements BINDiscovery
     public int getZoneAddress() { return getInt(zoneAddress); }
     public void setZoneAddress(int v) { setInt(zoneAddress, v, null); }
 
+    // Parent M720 positionOnLoop; -1 = this entry is a direct loop sensor.
+    public static final Property parentModulePos =
+        newProperty(Flags.HIDDEN | Flags.READONLY, -1, null);
+    public int getParentModulePos() { return getInt(parentModulePos); }
+    public void setParentModulePos(int v) { setInt(parentModulePos, v, null); }
+
     // Hidden: encodes sub-modules so they survive the RT->WB proxy.
     // Format: RECORD_SEP separates modules; FIELD_SEP separates fields within each:
     //   type  label  number  zoneAddress  zoneLabel
@@ -102,7 +108,8 @@ public class BAm8xDiscoveryEntry extends BNDiscoveryLeaf implements BINDiscovery
                   .append(sm.getLabel())       .append(FIELD_SEP)
                   .append(sm.getNumber())      .append(FIELD_SEP)
                   .append(sm.getZoneAddress()) .append(FIELD_SEP)
-                  .append(sm.getZoneLabel());
+                  .append(sm.getZoneLabel())   .append(FIELD_SEP)
+                  .append(d.getPositionOnLoop()); // parent M720 pos
             }
             setChildrenData(sb.toString());
         }
@@ -125,22 +132,28 @@ public class BAm8xDiscoveryEntry extends BNDiscoveryLeaf implements BINDiscovery
     @Override
     public void updateTarget(BComponent target) {
         if (!(target instanceof BAm8xDevice)) return;
+        BAm8xDevice dev = (BAm8xDevice) target;
+        dev.setParentModulePos(getParentModulePos());
         Am8xDeviceDescriptor d = new Am8xDeviceDescriptor(
             getPanelType(), getPanelLabel(),
             getLoopNumber(), getPositionOnLoop(),
             getDeviceType(), getDeviceLabel(),
             getZoneAddress(), getZoneLabel()
         );
-        ((BAm8xDevice) target).applyDescriptor(d);
+        dev.applyDescriptor(d);
     }
 
     @Override
     public boolean isExisting(BComponent component) {
         if (!(component instanceof BAm8xDevice)) return false;
         BAm8xDevice dev = (BAm8xDevice) component;
-        return dev.getLoopNumber()     == getLoopNumber()
-            && dev.getPositionOnLoop() == getPositionOnLoop()
-            && dev.getPanelLabel().equals(getPanelLabel());
+        if (dev.getLoopNumber()     != getLoopNumber())     return false;
+        if (dev.getPositionOnLoop() != getPositionOnLoop()) return false;
+        // If device has empty panelLabel (added with legacy code before Phase 3 fix),
+        // match on loop+pos alone. Otherwise require exact panel match so same-position
+        // devices from different panels are kept distinct.
+        String devPanel = dev.getPanelLabel();
+        return devPanel.isEmpty() || devPanel.equals(getPanelLabel());
     }
 
     @Override

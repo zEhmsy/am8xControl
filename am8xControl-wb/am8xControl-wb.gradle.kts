@@ -26,6 +26,11 @@ dependencies {
 
   api(":baja")
   api(":bajaui-wb")
+  api(":driver-rt")
+  api(":driver-wb")
+  api(":ndriver-rt")
+  api(":ndriver-wb")
+  api(":workbench-wb")
 
   api(project(":am8xControl-rt"))
 }

@@ -1,5 +1,5 @@
 <types>
-  <type class="com.sitecVendor.am8xControl.wb.BAm8xNetworkManager" name="Am8xNetworkManager">
+  <type class="com.sitecVendor.am8xControl.wb.BAm8xDeviceManager" name="Am8xDeviceManager">
     <agent default="true">
       <on type="am8xControl:Am8xNetwork"/>
     </agent>

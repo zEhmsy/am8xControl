@@ -49,6 +49,12 @@ public class BAm8xNetwork extends BNNetwork implements BINDiscoveryHost {
     public String getLastPanelLabel() { return getString(lastPanelLabel); }
     public void setLastPanelLabel(String v) { setString(lastPanelLabel, v, null); }
 
+    /** ORD opzionale alla BModbusTcpNetwork che gestisce il polling della centrale. */
+    public static final Property modbusNetworkOrd =
+            newProperty(Flags.SUMMARY, BOrd.DEFAULT, null);
+    public BOrd getModbusNetworkOrd() { return (BOrd) get(modbusNetworkOrd); }
+    public void setModbusNetworkOrd(BOrd v) { set(modbusNetworkOrd, v, null); }
+
     ////////////////////////////////////////////////////////////////
     // BNNetwork abstract
     ////////////////////////////////////////////////////////////////
