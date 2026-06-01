@@ -1,4 +1,5 @@
 <h1 align="center">
+  <img src="docs/am8xcontrol_logo.png" alt="am8xControl Logo" width="120" style="border-radius: 20px;">
   <br>
   am8xControl
   <br>
