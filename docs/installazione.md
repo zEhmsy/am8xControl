@@ -44,8 +44,34 @@ Una volta importato il certificato, puoi procedere all'installazione dei moduli 
 
 ---
 
-## 4. Primo Utilizzo
+## 4. Guida all'Utilizzo (Workflow)
 
-1. Apri la tua **Station**.
-2. Trascina il servizio `Am8xImportService` dalla palette sotto la cartella `/Services` (o in una cartella a tua scelta) della tua Station.
-3. Doppio clic sul servizio per aprire il **Manager** e avviare il processo di configurazione e discovery tramite file XML.
+Una volta installato il modulo, ecco come importare la topologia della centrale antincendio all'interno della tua station:
+
+1. **Aggiunta del Servizio:**
+   - Apri la tua **Station**.
+   - Dalla palette `am8xControl`, trascina il servizio `Am8xImportService` sotto la cartella `/Services` (o un'altra posizione a tua scelta) della tua Station.
+
+2. **Avvio del Manager:**
+   - Fai doppio clic sul servizio `Am8xImportService` appena inserito per aprire la relativa vista **Manager** (si aprirà automaticamente in modalità *Learn*).
+
+3. **Discovery e Importazione XML:**
+   - Clicca sul pulsante **Discover** in basso nella toolbar.
+   - Apparirà un popup di configurazione. Clicca su **PC...** per caricare il file XML generato dal tool di configurazione della centrale AM-8200N.
+   - Nello stesso popup, imposta l'**IP Modbus** della centrale, la **Porta** (di default 502) e il **Device Address Start** (indirizzo slave Modbus di partenza, default 101).
+   - Clicca **OK**. Il file verrà caricato sulla station e il sistema leggerà automaticamente tutta la topologia (centrali, loop, sensori e sottomoduli M720).
+
+4. **Revisione dei Dispositivi:**
+   - Nel pannello superiore (Learn pane) apparirà un albero con le centrali trovate e, sotto ognuna, i relativi dispositivi ordinati per Loop e Posizione.
+   - Puoi **selezionare/deselezionare** singoli dispositivi tramite l'apposita casella per decidere cosa importare nel database Niagara.
+   - Cliccando su **Edit Device** (oppure facendo doppio clic sulla cella della tabella), puoi rinominare l'etichetta del dispositivo, assegnarlo a una zona diversa o modificare manualmente gli indirizzi dei registri di Stato e Analogico pre-calcolati.
+
+5. **Commit nel Database Modbus:**
+   - Una volta verificata la lista, clicca su **Commit** nella toolbar.
+   - Il modulo eseguirà automaticamente le seguenti operazioni:
+     - Creerà (o userà) una rete `ModbusTcpNetwork` sotto `/Drivers`.
+     - Creerà un device speciale chiamato **CENTRALE** contenente i comandi generali (Silenzia, Reset, ecc.) e gli allarmi di tutte le zone.
+     - Creerà un **ModbusTcpDevice** specifico per ogni centrale fisica importata.
+     - Genererà l'albero completo per ogni Loop, inserendo i **Point Modbus** con gli indirizzi calcolati automaticamente per lo stato (Enum) e la misurazione (Numeric), collegandoli logicamente.
+
+A questo punto la rete Modbus sarà configurata in modo esatto e basterà avviarla per avviare il polling dalla rete antincendio!
