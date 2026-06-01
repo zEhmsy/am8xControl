@@ -6,6 +6,12 @@
 
 ---
 
+## 🚀 Installazione (Release Pre-compilata)
+
+Se stai scaricando una release ufficiale `.zip` con i moduli già compilati e firmati, fai riferimento alla **[Guida all'Installazione](docs/installazione.md)** per le istruzioni su come aggiungere il certificato self-signed al *User Trust Store* di Niagara e installare i moduli.
+
+---
+
 ## Struttura del modulo
 
 ```
