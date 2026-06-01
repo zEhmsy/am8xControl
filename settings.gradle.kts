@@ -57,3 +57,5 @@ configure<MultiProjectExtension> {
 }
 
 rootProject.name = "am8xControl"
+include("am8xControl-rt")
+include("am8xControl-wb")

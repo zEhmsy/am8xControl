@@ -1,7 +1,8 @@
+
 <types>
-  <type class="com.sitecVendor.am8xControl.wb.BAm8xDeviceManager" name="Am8xDeviceManager">
-    <agent default="true">
-      <on type="am8xControl:Am8xNetwork"/>
-    </agent>
+  <type class="com.sitecVendor.am8xControl.wb.BAm8xImportManager" name="Am8xImportManager">
+   <agent>
+    <on type="am8xControl:Am8xImportService"/>
+   </agent>
   </type>
 </types>

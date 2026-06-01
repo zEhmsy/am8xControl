@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bajaObjectGraph version="4.0" reversibleEncodingKeySource="none" FIPSEnabled="false" reversibleEncodingValidator="[null.1]=" >
+<p m="b=baja" t="b:UnrestrictedFolder">
+  <p n="Sensori" t="b:UnrestrictedFolder">
+    <p n="NFXI$2dOPT" m="ui=bajaui" t="ui:Picture">
+      <p n="layout" v="0.0,0.0,50.0,50.0"/>
+      <p n="scale" v="fitRatio"/>
+      <p n="halign" v="center"/>
+      <p n="valign" v="center"/>
+      <p n="image" v="module://am8xControl/img/sensori/NFXI-OPT_Normale.png"/>
+      <p n="bind" t="ui:ValueBinding">
+        <p n="ord" t="b:Ord" v="slot:"/>
+        <p n="summary" v="%displayName% = %out.value% | VC = %valoreCamera.value%"/>
+        <p n="image" m="am8x2=am8xControl" t="am8x2:StatusEnumToImage">
+          <p n="normalImage" v="module://am8xControl/img/sensori/NFXI-OPT_Normale.png"/>
+          <p n="emptyImage" v="module://am8xControl/img/sensori/NFXI-OPT_Non_programmato.png"/>
+          <p n="excludedImage" v="module://am8xControl/img/sensori/NFXI-OPT_Escluso.png"/>
+          <p n="testImage" v="module://am8xControl/img/sensori/NFXI-OPT_Test.png"/>
+          <p n="activeImage" v="module://am8xControl/img/sensori/NFXI-OPT_Allarme.png"/>
+          <p n="faultImage" v="module://am8xControl/img/sensori/NFXI-OPT_Guasto.png"/>
+          <p n="preAlarmImage" v="module://am8xControl/img/sensori/NFXI-OPT_Preallarme.png"/>
+          <p n="defaultImage" v="module://am8xControl/img/sensori/NFXI-OPT_Guasto.png"/>
+        </p>
+      </p>
+      <p n="compPreviewWidget" f="hR" m="ui=bajaui" t="ui:Label">
+        <p n="layout" v="0.0,0.0,50.0,50.0"/>
+        <p n="image" v="module://am8xControl/img/sensori/NFXI-OPT_Normale.png"/>
+      </p>
+      <p n="wsAnnotation" f="r" t="b:WsAnnotation" v="90,90,8"/>
+    </p>
+    <p n="NFXI$2dTHER" m="ui=bajaui" t="ui:Picture">
+      <p n="layout" v="0.0,0.0,50.0,50.0"/>
+      <p n="scale" v="fitRatio"/>
+      <p n="halign" v="center"/>
+      <p n="valign" v="center"/>
+      <p n="image" v="module://am8xControl/img/sensori/THER_Normale.png"/>
+      <p n="bind" t="ui:ValueBinding">
+        <p n="ord" t="b:Ord" v="slot:"/>
+        <p n="summary" v="%displayName% = %out.value% | VC = %valoreCamera.value%"/>
+        <p n="image" m="am8x2=am8xControl" t="am8x2:StatusEnumToImage">
+          <p n="normalImage" v="module://am8xControl/img/sensori/THER_Normale.png"/>
+          <p n="emptyImage" v="module://am8xControl/img/sensori/THER_Non_programmato.png"/>
+          <p n="excludedImage" v="module://am8xControl/img/sensori/THER_Escluso.png"/>
+          <p n="testImage" v="module://am8xControl/img/sensori/THER_Test.png"/>
+          <p n="activeImage" v="module://am8xControl/img/sensori/THER_Allarme.png"/>
+          <p n="faultImage" v="module://am8xControl/img/sensori/THER_Guasto.png"/>
+          <p n="preAlarmImage" v="module://am8xControl/img/sensori/THER_Preallarme.png"/>
+          <p n="defaultImage" v="module://am8xControl/img/sensori/THER_Guasto.png"/>
+        </p>
+      </p>
+      <p n="compPreviewWidget" f="hR" m="ui=bajaui" t="ui:Label">
+        <p n="layout" v="0.0,0.0,50.0,50.0"/>
+        <p n="image" v="module://am8xControl/img/sensori/THER_Normale.png"/>
+      </p>
+      <p n="wsAnnotation" f="r" t="b:WsAnnotation" v="90,95,8"/>
+    </p>
+  </p>
+  <p n="Moduli" t="b:UnrestrictedFolder">
+    <p n="Pulsante" m="ui=bajaui" t="ui:Picture">
+      <p n="layout" v="0.0,0.0,35.0,35.0"/>
+      <p n="scale" v="fitRatio"/>
+      <p n="halign" v="center"/>
+      <p n="valign" v="center"/>
+      <p n="image" v="module://am8xControl/img/moduli/PULL_Normale.png"/>
+      <p n="bind" t="ui:ValueBinding">
+        <p n="ord" t="b:Ord" v="slot:"/>
+        <p n="summary" v="%displayName% = %out.value%"/>
+        <p n="image" m="am8x2=am8xControl" t="am8x2:StatusEnumToImage">
+          <p n="normalImage" v="module://am8xControl/img/moduli/PULL_Normale.png"/>
+          <p n="emptyImage" v="module://am8xControl/img/moduli/PULL_Non_programmato.png"/>
+          <p n="excludedImage" v="module://am8xControl/img/moduli/PULL_Escluso.png"/>
+          <p n="testImage" v="module://am8xControl/img/moduli/PULL_Test.png"/>
+          <p n="activeImage" v="module://am8xControl/img/moduli/PULL_Allarme.png"/>
+          <p n="faultImage" v="module://am8xControl/img/moduli/PULL_Gusato.png"/>
+          <p n="preAlarmImage" v="module://am8xControl/img/moduli/PULL_Preallarme.png"/>
+          <p n="defaultImage" v="module://am8xControl/img/moduli/PULL_Gusato.png"/>
+        </p>
+      </p>
+      <p n="compPreviewWidget" f="hR" m="ui=bajaui" t="ui:Label">
+        <p n="layout" v="0.0,0.0,35.0,35.0"/>
+        <p n="image" v="module://am8xControl/img/moduli/PULL_Normale.png"/>
+      </p>
+      <p n="wsAnnotation" f="r" t="b:WsAnnotation" v="90,100,8"/>
+    </p>
+    <p n="PAN1" m="ui=bajaui" t="ui:Picture">
+      <p n="layout" v="0.0,0.0,40.0,20.0"/>
+      <p n="scale" v="fitRatio"/>
+      <p n="halign" v="center"/>
+      <p n="valign" v="center"/>
+      <p n="image" v="module://am8xControl/img/moduli/PAN1_Normale.png"/>
+      <p n="bind" t="ui:ValueBinding">
+        <p n="ord" t="b:Ord" v="slot:"/>
+        <p n="summary" v="%displayName% = %out.value%"/>
+        <p n="image" m="am8x2=am8xControl" t="am8x2:StatusEnumToImage">
+          <p n="normalImage" v="module://am8xControl/img/moduli/PAN1_Normale.png"/>
+          <p n="emptyImage" v="module://am8xControl/img/moduli/PAN1_Non_progrmmato.png"/>
+          <p n="excludedImage" v="module://am8xControl/img/moduli/PAN1_Escluso.png"/>
+          <p n="testImage" v="module://am8xControl/img/moduli/PAN1_Test.png"/>
+          <p n="activeImage" v="module://am8xControl/img/moduli/PAN1_Allarme.png"/>
+          <p n="faultImage" v="module://am8xControl/img/moduli/PAN1_Guasto.png"/>
+          <p n="preAlarmImage" v="module://am8xControl/img/moduli/PAN1_Preallarme.png"/>
+          <p n="defaultImage" v="module://am8xControl/img/moduli/PAN1_Guasto.png"/>
+        </p>
+      </p>
+      <p n="compPreviewWidget" f="hR" m="ui=bajaui" t="ui:Label">
+        <p n="layout" v="0.0,0.0,40.0,20.0"/>
+        <p n="image" v="module://am8xControl/img/moduli/PAN1_Normale.png"/>
+      </p>
+      <p n="wsAnnotation" f="r" t="b:WsAnnotation" v="90,105,8"/>
+    </p>
+    <p n="M700" m="ui=bajaui" t="ui:Picture">
+      <p n="layout" v="0.0,0.0,35.0,35.0"/>
+      <p n="scale" v="fitRatio"/>
+      <p n="halign" v="center"/>
+      <p n="valign" v="center"/>
+      <p n="image" v="module://am8xControl/img/moduli/M700_Normale.png"/>
+      <p n="bind" t="ui:ValueBinding">
+        <p n="ord" t="b:Ord" v="slot:"/>
+        <p n="summary" v="%displayName% = %out.value%"/>
+        <p n="image" m="am8x2=am8xControl" t="am8x2:StatusEnumToImage">
+          <p n="normalImage" v="module://am8xControl/img/moduli/M700_Normale.png"/>
+          <p n="emptyImage" v="module://am8xControl/img/moduli/M700_Non_programmato.png"/>
+          <p n="excludedImage" v="module://am8xControl/img/moduli/M700_Escluso.png"/>
+          <p n="testImage" v="module://am8xControl/img/moduli/M700_Test.png"/>
+          <p n="activeImage" v="module://am8xControl/img/moduli/M700_Allarme.png"/>
+          <p n="faultImage" v="module://am8xControl/img/moduli/M700_Guasto.png"/>
+          <p n="preAlarmImage" v="module://am8xControl/img/moduli/M700_Preallarme.png"/>
+          <p n="defaultImage" v="module://am8xControl/img/moduli/M700_Guasto.png"/>
+        </p>
+      </p>
+      <p n="compPreviewWidget" f="hR" m="ui=bajaui" t="ui:Label">
+        <p n="layout" v="0.0,0.0,35.0,35.0"/>
+        <p n="image" v="module://am8xControl/img/moduli/M700_Normale.png"/>
+      </p>
+      <p n="wsAnnotation" f="r" t="b:WsAnnotation" v="90,110,8"/>
+    </p>
+  </p>
+</p>
+</bajaObjectGraph>

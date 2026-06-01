@@ -1,8 +1,18 @@
 <types>
-  <type class="com.sitecVendor.am8xControl.BAm8xNetwork"
-        name="Am8xNetwork"/>
-  <type class="com.sitecVendor.am8xControl.BAm8xDevice"
-        name="Am8xDevice"/>
-  <type class="com.sitecVendor.am8xControl.BAm8xLearnDevicesJob"
-        name="Am8xLearnDevicesJob"/>
+  <type class="com.sitecVendor.am8xControl.service.BAm8xImportService"
+        name="Am8xImportService"/>
+  <type class="com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryReport"
+        name="Am8xDiscoveryReport"/>
+  <type class="com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryCandidate"
+        name="Am8xDiscoveryCandidate"/>
+  <type class="com.sitecVendor.am8xControl.discovery.BAm8xPanelFolder"
+        name="Am8xPanelFolder"/>
+  <type class="com.sitecVendor.am8xControl.service.BAm8xWizardInput"
+        name="Am8xWizardInput"/>
+  <type class="com.sitecVendor.am8xControl.modbus.BAm8xStatePoint"
+        name="Am8xStatePoint"/>
+  <type class="com.sitecVendor.am8xControl.modbus.BAm8xModuleStatePoint"
+        name="Am8xModuleStatePoint"/>
+  <type class="com.sitecVendor.am8xControl.px.BStatusEnumToImage"
+        name="StatusEnumToImage"/>
 </types>

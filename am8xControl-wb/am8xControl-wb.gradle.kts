@@ -14,7 +14,7 @@ plugins {
   id("com.tridium.convention.niagara-home-repositories")
 }
 
-description = "AM-8xxx fire panel topology import (wb)"
+description = "AM-8xxx fire panel topology importer — UI components (wb)"
 
 moduleManifest {
   moduleName.set("am8xControl")
@@ -26,12 +26,8 @@ dependencies {
 
   api(":baja")
   api(":bajaui-wb")
-  api(":driver-rt")
-  api(":driver-wb")
-  api(":ndriver-rt")
-  api(":ndriver-wb")
+  api(":gx-rt")
   api(":workbench-wb")
-
   api(project(":am8xControl-rt"))
 }
 
@@ -42,5 +38,6 @@ tasks.named<Bajadoc>("bajadoc") {
 tasks.named<Jar>("jar") {
   from("src") {
     include("img/**")
+    include("resources/**")
   }
 }

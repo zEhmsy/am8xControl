@@ -14,7 +14,7 @@ plugins {
   id("com.tridium.convention.niagara-home-repositories")
 }
 
-description = "AM-8xxx fire panel topology import (rt)"
+description = "AM-8xxx fire panel topology importer — service-based (rt-only)"
 
 moduleManifest {
   moduleName.set("am8xControl")
@@ -28,10 +28,11 @@ dependencies {
   api(":control-rt")
   api(":driver-rt")
   api(":basicDriver-rt")
-  api(":ndriver-rt")
-  api(":modbusCore-rt")
-  api(":alarm-rt")
   api(":gx-rt")
+  api(":modbusCore-rt")
+  api(":modbusTcp-rt")
+  api(":alarm-rt")
+  api(":kitControl-rt")
 }
 
 tasks.named<Bajadoc>("bajadoc") {
