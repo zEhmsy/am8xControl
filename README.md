@@ -391,8 +391,6 @@ Drivers/
 
 ## Limitazioni note
 
-1. **Path station hardcoded** — `doUploadXml()` e `buildFsPaths()` usano `/home/niagara/Niagara4.15/TridiumEMEA/stations/Training/`. Non portabile su altre station o installazioni.
-2. **DB pane non funzionale** — `Am8xImportModel` è presente ma non visualizza dati a causa di difficoltà nella integrazione `BComponentTable.load()` con classi WB.
-3. **Upload non testato in produzione** — il meccanismo RPC Base64 per il caricamento da PC è stato implementato ma non ancora validato end-to-end.
-4. **`clearImported` non implementato** — l'azione di rimozione dei point già creati è un placeholder (fase 5).
-5. **`alreadyImported` non sincronizzato** — il flag viene impostato dal servizio ma non viene riletto dal Modbus tree reale a ogni apertura del manager.
+1. **Upload non testato in produzione** — il meccanismo RPC Base64 per il caricamento da PC è stato implementato ma non ancora validato end-to-end.
+2. **`clearImported` non implementato** — l'azione di rimozione dei point già creati è un placeholder (fase 5).
+3. **`alreadyImported` non sincronizzato** — il flag viene impostato dal servizio ma non viene riletto dal Modbus tree reale a ogni apertura del manager.
