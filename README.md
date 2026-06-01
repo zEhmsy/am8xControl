@@ -7,10 +7,11 @@
 <h4 align="center">Modulo Niagara 4.15 per l'importazione automatica di centrali antincendio Hochiki/Notifier AM-8200N.</h4>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-blue.svg?cacheSeconds=2592000" />
+  <img alt="Version" src="https://img.shields.io/badge/version-3.0.0-blue.svg?cacheSeconds=2592000" />
   <img alt="Niagara" src="https://img.shields.io/badge/Niagara-4.15-orange.svg" />
-  <img alt="Java" src="https://img.shields.io/badge/Java-8%2B-red.svg" />
-  <img alt="License" src="https://img.shields.io/badge/License-Proprietary-yellow.svg" />
+  <img alt="Java" src="https://img.shields.io/badge/Java-8-red.svg" />
+  <img alt="License" src="https://img.shields.io/badge/License-Apache%202.0-yellow.svg" />
+  <a href="https://www.buymeacoffee.com/gturturro"><img alt="Buy Me A Coffee" src="https://img.shields.io/badge/Donate-Buy%20Me%20A%20Coffee-FFDD00.svg?logo=buymeacoffee&logoColor=black" /></a>
 </p>
 
 <p align="center">
@@ -28,8 +29,8 @@
 
 ## 🎯 Scopo
 
-`am8xControl` è un modulo progettato per ridurre drasticamente i tempi di commissioning su Niagara 4. 
-Importa la topologia di una o più centrali antincendio **AM-8200N** direttamente dal file XML generato dal tool di configurazione. 
+`am8xControl` è un modulo progettato per ridurre drasticamente i tempi di commissioning su Niagara 4.
+Importa la topologia di una o più centrali antincendio **AM-8200N** direttamente dal file XML generato dal tool di configurazione.
 
 Consente all'operatore di rivedere e modificare *offline* i dispositivi scoperti tramite un pannello visivo, generando poi automaticamente l'intero albero **Modbus TCP** (con proxy extension e link pre-configurati) sotto `/Drivers/ModbusTcpNetwork` nella Station.
 
