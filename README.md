@@ -12,6 +12,7 @@
   <img alt="Niagara" src="https://img.shields.io/badge/Niagara-4.15-orange.svg" />
   <img alt="Java" src="https://img.shields.io/badge/Java-8-red.svg" />
   <img alt="License" src="https://img.shields.io/badge/License-Apache%202.0-yellow.svg" />
+  <a href="https://github.com/zEhmsy/am8xControl/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/zEhmsy/am8xControl.svg?style=social&label=Star" /></a>
   <a href="https://www.buymeacoffee.com/gturturro"><img alt="Buy Me A Coffee" src="https://img.shields.io/badge/Donate-Buy%20Me%20A%20Coffee-FFDD00.svg?logo=buymeacoffee&logoColor=black" /></a>
 </p>
 
@@ -39,13 +40,17 @@ Consente all'operatore di rivedere e modificare *offline* i dispositivi scoperti
 
 ## 🚀 Installazione
 
-Se stai utilizzando una release ufficiale `.zip` con i moduli già compilati e firmati, l'installazione richiede pochi passaggi:
+Se stai utilizzando una release ufficiale con i moduli già compilati e firmati, scarica il pacchetto `.zip` dall'ultima **[Release Ufficiale](https://github.com/zEhmsy/am8xControl/releases/latest)**. L'installazione richiede pochi passaggi:
 
 1. Importa il certificato (es. `code.pem`) nel **User Trust Store** in Niagara Workbench.
 2. Copia i file `.jar` all'interno della cartella `modules/` della tua installazione Niagara.
 3. Riavvia la Station e il Workbench.
 
 👉 **Leggi la [Guida all'Installazione Completa](https://github.com/zEhmsy/am8xControl/wiki/Installazione-e-Utilizzo)** per le istruzioni dettagliate passo-passo.
+
+---
+
+⭐ **Ti piace questo progetto?** Lascia una **stella** a questa repository per supportare lo sviluppo!
 
 ---
 
