@@ -45,7 +45,7 @@ Se stai utilizzando una release ufficiale `.zip` con i moduli già compilati e f
 2. Copia i file `.jar` all'interno della cartella `modules/` della tua installazione Niagara.
 3. Riavvia la Station e il Workbench.
 
-👉 **Leggi la [Guida all'Installazione Completa](docs/installazione.md)** per le istruzioni dettagliate passo-passo.
+👉 **Leggi la [Guida all'Installazione Completa](https://github.com/zEhmsy/am8xControl/wiki/Installazione-e-Utilizzo)** per le istruzioni dettagliate passo-passo.
 
 ---
 
