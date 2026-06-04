@@ -5,7 +5,7 @@
   <br>
 </h1>
 
-<h4 align="center">Modulo Niagara 4.15 per l'importazione automatica di centrali antincendio Hochiki/Notifier AM-8200N.</h4>
+<h4 align="center">Modulo Niagara 4.15 per l'importazione automatica di centrali antincendio Notifier AM-8200N.</h4>
 
 <p align="center">
   <img alt="Version" src="https://img.shields.io/badge/version-3.0.0-blue.svg?cacheSeconds=2592000" />
