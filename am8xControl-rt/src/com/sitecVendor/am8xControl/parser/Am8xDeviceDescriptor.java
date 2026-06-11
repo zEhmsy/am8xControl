@@ -18,6 +18,8 @@ public final class Am8xDeviceDescriptor {
     private final String label;
     private final int    zoneAddress;
     private final String zoneLabel;
+    /** DeviceTypeID dall'XML: 0 = sensore/rilevatore, 1 = modulo. -1 = assente. */
+    private final int    deviceTypeId;
 
     private final List<Am8xSubModuleDescriptor> subModules = new ArrayList<>();
 
@@ -28,7 +30,8 @@ public final class Am8xDeviceDescriptor {
                                 String deviceType,
                                 String label,
                                 int    zoneAddress,
-                                String zoneLabel) {
+                                String zoneLabel,
+                                int    deviceTypeId) {
         this.panelType      = panelType      == null ? "" : panelType;
         this.panelLabel     = panelLabel     == null ? "" : panelLabel;
         this.loopNumber     = loopNumber;
@@ -37,6 +40,7 @@ public final class Am8xDeviceDescriptor {
         this.label          = label          == null ? "" : label;
         this.zoneAddress    = zoneAddress;
         this.zoneLabel      = zoneLabel      == null ? "" : zoneLabel;
+        this.deviceTypeId   = deviceTypeId;
     }
 
     public String getPanelType()      { return panelType; }
@@ -47,12 +51,20 @@ public final class Am8xDeviceDescriptor {
     public String getLabel()          { return label; }
     public int    getZoneAddress()    { return zoneAddress; }
     public String getZoneLabel()      { return zoneLabel; }
+    public int    getDeviceTypeId()   { return deviceTypeId; }
 
     public void addSubModule(Am8xSubModuleDescriptor sm) { subModules.add(sm); }
     public List<Am8xSubModuleDescriptor> getSubModules() { return Collections.unmodifiableList(subModules); }
     public boolean hasSubModules() { return !subModules.isEmpty(); }
 
+    /**
+     * Discrimina modulo vs sensore. Il campo XML {@code <DeviceTypeID>} è la
+     * fonte autorevole (0 = sensore/rilevatore, 1 = modulo); l'euristica sul
+     * prefisso "M" è solo un fallback per XML privi del campo, e fallisce su
+     * tipi come CMX-1 o WMSB (moduli che non iniziano con 'M').
+     */
     public boolean isModuleType() {
+        if (deviceTypeId >= 0) return deviceTypeId == 1;
         return deviceType != null && deviceType.startsWith("M");
     }
 

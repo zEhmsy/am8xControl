@@ -50,29 +50,66 @@ public final class ModbusTreeBuilder {
      */
     public static BModbusTcpNetwork ensureNetwork(BComponent parent, String networkSlot,
                                                   boolean gateway, String ip, int port) {
-        // 1. Is there already a network serving this exact IP/port?
+        // ── Plain TCP mode ────────────────────────────────────────────────
+        // In una rete TCP semplice l'IP vive su ogni device, non sulla rete:
+        // un'unica BModbusTcpNetwork può ospitare device su IP diversi. Quindi
+        // riusiamo la rete esistente (per nome slot, o la prima rete TCP non
+        // gateway trovata) invece di crearne una numerata.
+        if (!gateway) {
+            BModbusTcpNetwork plain = findReusablePlainNetwork(parent, networkSlot);
+            if (plain != null) {
+                LOG.info("[ModbusTreeBuilder] reusing existing BModbusTcpNetwork '"
+                        + plain.getName() + "'");
+                return plain;
+            }
+            return createNetwork(parent, networkSlot, false, ip, port);
+        }
+
+        // ── Gateway mode ──────────────────────────────────────────────────
+        // Il gateway possiede l'IP: reti su IP diversi sono endpoint distinti.
         BModbusTcpNetwork ipMatch = findNetworkServingIp(parent, ip, port);
         if (ipMatch != null) {
-            boolean existingIsGateway = ipMatch instanceof BModbusTcpGateway;
-            if (existingIsGateway == gateway) {
-                // Same IP, correct type → reuse.
-                if (gateway) applyNetworkSettings((BModbusTcpGateway) ipMatch, ip, port);
-                LOG.info("[ModbusTreeBuilder] reusing existing "
-                        + (gateway ? "BModbusTcpGateway" : "BModbusTcpNetwork")
-                        + " serving IP " + ip + ":" + port);
+            if (ipMatch instanceof BModbusTcpGateway) {
+                applyNetworkSettings((BModbusTcpGateway) ipMatch, ip, port);
+                LOG.info("[ModbusTreeBuilder] reusing existing BModbusTcpGateway serving IP "
+                        + ip + ":" + port);
                 return ipMatch;
             }
-            // Same IP, wrong type → topology conflict: do not cast/overwrite.
-            String existingType  = existingIsGateway ? "ModbusGateway" : "ModbusTcp";
-            String requestedType = gateway ? "ModbusGateway" : "ModbusTcp";
+            // Stesso IP, ma è una rete TCP semplice → conflitto: non fare cast.
             String msg = "Topology Conflict: Network at IP " + ip + ":" + port
-                    + " already exists as " + existingType
-                    + ", cannot instantiate as " + requestedType;
+                    + " already exists as ModbusTcp, cannot instantiate as ModbusGateway";
             LOG.warning("[ModbusTreeBuilder] " + msg);
             throw new IllegalStateException(msg);
         }
+        return createNetwork(parent, networkSlot, true, ip, port);
+    }
 
-        // 2. No network serves this IP → independent endpoint, create a new network.
+    /**
+     * Cerca una rete TCP semplice (non gateway) riutilizzabile sotto {@code parent}:
+     * prima quella esattamente al nome slot configurato, poi la prima rete
+     * {@link BModbusTcpNetwork} che non sia un {@link BModbusTcpGateway}.
+     * Ritorna null se non ne esiste alcuna (o se al nome slot c'è un gateway).
+     */
+    private static BModbusTcpNetwork findReusablePlainNetwork(BComponent parent, String networkSlot) {
+        try {
+            BValue v = parent.get(networkSlot);
+            if (v instanceof BModbusTcpNetwork && !(v instanceof BModbusTcpGateway)) {
+                return (BModbusTcpNetwork) v;
+            }
+        } catch (Exception ignore) {}
+        for (Property p : parent.getPropertiesArray()) {
+            BValue v;
+            try { v = parent.get(p); } catch (Exception ignore) { continue; }
+            if (v instanceof BModbusTcpNetwork && !(v instanceof BModbusTcpGateway)) {
+                return (BModbusTcpNetwork) v;
+            }
+        }
+        return null;
+    }
+
+    /** Crea e monta una nuova rete (TCP o gateway) sul primo slot libero. */
+    private static BModbusTcpNetwork createNetwork(BComponent parent, String networkSlot,
+                                                   boolean gateway, String ip, int port) {
         BModbusTcpNetwork net = gateway ? new BModbusTcpGateway() : new BModbusTcpNetwork();
         String slot = freeSlot(parent, networkSlot);
         try {

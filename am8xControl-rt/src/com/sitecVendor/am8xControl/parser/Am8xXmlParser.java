@@ -78,9 +78,10 @@ public final class Am8xXmlParser {
                     String label     = getChildText(device, "Label");
                     int    zoneAddr  = parseInt(getChildText(device, "ZoneAddress"));
                     String zoneLabel = getChildText(device, "ZoneLabel");
+                    int    devTypeId = parseIntOrDefault(getChildText(device, "DeviceTypeID"), -1);
 
                     Am8xDeviceDescriptor desc = new Am8xDeviceDescriptor(
-                            panelType, panelLabel, loop, pos, type, label, zoneAddr, zoneLabel);
+                            panelType, panelLabel, loop, pos, type, label, zoneAddr, zoneLabel, devTypeId);
                     parseSubModules(device, desc);
                     result.add(desc);
                 } catch (Exception e) {
@@ -131,7 +132,11 @@ public final class Am8xXmlParser {
     }
 
     private static int parseInt(String s) {
-        if (s == null || s.isEmpty()) return 0;
-        try { return Integer.parseInt(s.trim()); } catch (NumberFormatException e) { return 0; }
+        return parseIntOrDefault(s, 0);
+    }
+
+    private static int parseIntOrDefault(String s, int def) {
+        if (s == null || s.isEmpty()) return def;
+        try { return Integer.parseInt(s.trim()); } catch (NumberFormatException e) { return def; }
     }
 }
