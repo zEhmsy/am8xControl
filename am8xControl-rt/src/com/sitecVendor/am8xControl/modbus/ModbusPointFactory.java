@@ -4,6 +4,7 @@ import com.tridium.modbusCore.client.point.BModbusClientNumericProxyExt;
 import com.tridium.modbusCore.client.point.BModbusClientEnumBitsProxyExt;
 import com.tridium.modbusCore.datatypes.BFlexAddress;
 import com.tridium.modbusCore.enums.BAddressFormatEnum;
+import com.tridium.modbusCore.enums.BDataTypeEnum;
 
 import javax.baja.control.BNumericPoint;
 import javax.baja.control.BBooleanPoint;
@@ -158,6 +159,7 @@ public final class ModbusPointFactory {
         try {
             BNumericPoint pt = new BNumericPoint();
             BModbusClientNumericProxyExt ext = new BModbusClientNumericProxyExt();
+            ext.setDataType(BDataTypeEnum.signedInteger);
             pt.setProxyExt(ext);
             parent.add(slotName, pt, Flags.SUMMARY);
             configureFlexAddress(ext, address);
