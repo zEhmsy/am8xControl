@@ -13,7 +13,7 @@ import com.sitecVendor.am8xControl.modbus.BAm8xModuleStatePoint;
 import com.sitecVendor.am8xControl.parser.Am8xDeviceDescriptor;
 import com.sitecVendor.am8xControl.parser.Am8xSubModuleDescriptor;
 import com.sitecVendor.am8xControl.parser.Am8xXmlParser;
-import com.tridium.modbusTcp.BModbusTcpDevice;
+import com.tridium.modbusCore.client.BModbusClientDevice;
 import com.tridium.modbusTcp.BModbusTcpNetwork;
 
 import javax.baja.file.BIFile;
@@ -94,6 +94,18 @@ public final class BAm8xImportService extends BComponent implements BIService {
             newProperty(Flags.SUMMARY, 101, null);
     public int getDeviceAddressStart() { return getInt(deviceAddressStart); }
     public void setDeviceAddressStart(int v) { setInt(deviceAddressStart, v, null); }
+
+    /**
+     * Tipo di device parent da instanziare: ModbusTcp (default) o ModbusGateway.
+     * Impostato dal popup Discover (BAm8xWizardInput) e consumato in doAddSelected.
+     */
+    public static final Property deviceType = newProperty(
+            Flags.SUMMARY,
+            BDynamicEnum.make(0, BAm8xWizardInput.DEVICE_TYPE_RANGE),
+            BFacets.makeEnum(BAm8xWizardInput.DEVICE_TYPE_RANGE));
+    public BDynamicEnum getDeviceType() { return (BDynamicEnum) get(deviceType); }
+    public void setDeviceType(BDynamicEnum v) { set(deviceType, v, null); }
+    public boolean isGatewayMode() { return getDeviceType().getOrdinal() == 1; }
 
     ////////////////////////////////////////////////////////////////
     // Properties — stato runtime (readonly)
@@ -182,6 +194,9 @@ public final class BAm8xImportService extends BComponent implements BIService {
         }
         if (input.getDeviceAddressStart() > 0) {
             setDeviceAddressStart(input.getDeviceAddressStart());
+        }
+        if (input.getDeviceType() != null) {
+            setDeviceType(input.getDeviceType());
         }
         doDiscover();
     }
@@ -276,13 +291,31 @@ public final class BAm8xImportService extends BComponent implements BIService {
             return;
         }
 
-        // Ensure Modbus network (devices are created per-panel below)
+        // Tipo device scelto nel popup Discover (ModbusTcp vs ModbusGateway)
+        boolean gateway = isGatewayMode();
+        LOG.info("[Am8xImportService] addSelected: deviceType ordinal="
+                + getDeviceType().getOrdinal() + " gateway=" + gateway);
+
+        // Network slot: in gateway mode usa un nome dedicato (così il nodo è
+        // chiaramente distinto da una rete TCP) a meno che l'utente non abbia
+        // personalizzato modbusNetworkSlot oltre il default.
+        String networkSlot = getModbusNetworkSlot();
+        if (gateway && (networkSlot == null || networkSlot.isEmpty()
+                || "ModbusTcpNetwork".equals(networkSlot))) {
+            networkSlot = "ModbusTcpGateway";
+        }
+
+        // Ensure Modbus network (devices are created per-panel below).
+        // In gateway mode IP/port vivono sulla rete BModbusTcpGateway.
         BModbusTcpNetwork network;
         try {
-            network = ModbusTreeBuilder.ensureNetwork(drivers, getModbusNetworkSlot());
+            network = ModbusTreeBuilder.ensureNetwork(drivers, networkSlot, gateway,
+                    getModbusIpAddress(), getModbusTcpPort() > 0 ? getModbusTcpPort() : 502);
+            LOG.info("[Am8xImportService] addSelected: network slot=" + networkSlot
+                    + " type=" + network.getType());
         } catch (Exception e) {
             setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
-            setLastImportStatus("addSelected FAILED: errore network");
+            setLastImportStatus("addSelected FAILED: " + e.getMessage());
             LOG.severe("[Am8xImportService] addSelected network failed: " + e.getMessage());
             return;
         }
@@ -291,8 +324,8 @@ public final class BAm8xImportService extends BComponent implements BIService {
         Am8xAlarmAutomation.ensureAlarmClasses("Z");
         try {
             int port = getModbusTcpPort() > 0 ? getModbusTcpPort() : 502;
-            BModbusTcpDevice centraleDev = ModbusTreeBuilder.ensureDevice(
-                    network, "CENTRALE", getModbusIpAddress(), port, 1);
+            BModbusClientDevice centraleDev = ModbusTreeBuilder.ensureDevice(
+                    network, "CENTRALE", getModbusIpAddress(), port, 1, gateway);
             BComponent centralePoints = ModbusTreeBuilder.getPointsContainer(centraleDev);
             if (centralePoints != null) {
                 // Estrai tutte le zone dai candidati per la CENTRALE
@@ -333,9 +366,9 @@ public final class BAm8xImportService extends BComponent implements BIService {
             int    port = panel.getPort() > 0 ? panel.getPort() : 502;
             int    devAddr = panel.getDeviceAddress();
 
-            BModbusTcpDevice dev;
+            BModbusClientDevice dev;
             try {
-                dev = ModbusTreeBuilder.ensureDevice(network, panelSlot, ip, port, devAddr);
+                dev = ModbusTreeBuilder.ensureDevice(network, panelSlot, ip, port, devAddr, gateway);
             } catch (Exception e) {
                 LOG.warning("[Am8xImportService] ensureDevice for " + panelSlot
                         + " failed: " + e.getMessage());

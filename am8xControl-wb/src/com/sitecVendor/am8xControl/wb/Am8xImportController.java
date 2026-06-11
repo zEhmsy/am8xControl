@@ -11,7 +11,9 @@ import javax.baja.ui.CommandArtifact;
 import javax.baja.ui.CommandEvent;
 import javax.baja.workbench.mgr.MgrController;
 
+import javax.baja.sys.BDynamicEnum;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -19,6 +21,7 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.awt.GridLayout;
 
 /**
@@ -50,6 +53,17 @@ public class Am8xImportController extends MgrController {
     }
 
     private void refresh() {
+        Am8xImportLearn learn = getImportLearn();
+        // Non chiamiamo updateRoots(new Object[0]): svuota l'albero e fa
+        // collassare tutti i nodi espansi dall'utente durante il polling.
+        learn.updateDiscoveryData();
+        learn.updateTable();
+        try {
+            ((BAm8xImportManager) getManager()).forceDiscoverOnlyLayout();
+        } catch (Exception ignore) {}
+    }
+
+    private void hardRefresh() {
         Am8xImportLearn learn = getImportLearn();
         learn.updateRoots(new Object[0]);
         learn.updateDiscoveryData();
@@ -100,7 +114,17 @@ public class Am8xImportController extends MgrController {
         @Override
         public CommandArtifact doInvoke(CommandEvent ev) throws Exception {
             getService().clearAll();
-            refresh();
+            // Clear all è RPC: il proxy WB può essere ancora stale dopo
+            // l'invocazione. Facciamo un hardRefresh subito + alcuni
+            // refresh leggeri per intercettare l'update del report quando
+            // arriva dalla station.
+            hardRefresh();
+            new Thread(() -> {
+                for (int i = 0; i < 6; i++) {
+                    try { Thread.sleep(250); } catch (InterruptedException ignore) {}
+                    SwingUtilities.invokeLater(() -> hardRefresh());
+                }
+            }, "Am8x-ClearPoll").start();
             return null;
         }
     }
@@ -215,9 +239,16 @@ public class Am8xImportController extends MgrController {
                 status = getService().getLastImportStatus();
             }
 
-            BDialog.info(getManager(), "Commit Completato",
-                "I dispositivi Modbus sono stati processati.\n" +
-                "Dettaglio: " + status);
+            boolean failed = status != null
+                    && (status.contains("FAILED") || status.contains("Conflict"));
+            if (failed) {
+                BDialog.error(getManager(), "Commit non riuscito",
+                    "Import non completato.\nDettaglio: " + status, (Throwable) null);
+            } else {
+                BDialog.info(getManager(), "Commit Completato",
+                    "I dispositivi Modbus sono stati processati.\n" +
+                    "Dettaglio: " + status);
+            }
             return null;
         }
     }
@@ -277,10 +308,15 @@ public class Am8xImportController extends MgrController {
             if (o != null && !BOrd.DEFAULT.equals(o)) curXml = o.toString();
         } catch (Exception ignore) {}
 
-        JTextField xmlField = new JTextField(curXml, 30);
+        JTextField xmlField = new JTextField(curXml, 22);
         JTextField ipField = new JTextField(svc.getModbusIpAddress(), 15);
         JTextField portField = new JTextField(String.valueOf(svc.getModbusTcpPort()), 6);
         JTextField devAddrField = new JTextField(String.valueOf(svc.getDeviceAddressStart()), 6);
+
+        // Tipo device parent: ModbusTcp (default) o ModbusGateway.
+        JComboBox<String> deviceTypeCombo = new JComboBox<>(new String[] { "ModbusTcp", "ModbusGateway" });
+        try { deviceTypeCombo.setSelectedIndex(svc.getDeviceType().getOrdinal() == 1 ? 1 : 0); }
+        catch (Exception ignore) { deviceTypeCombo.setSelectedIndex(0); }
 
         // "PC…" — JFileChooser locale, carica e carica sulla station shared automaticamente
         JButton localBtn = new JButton("PC…");
@@ -338,16 +374,18 @@ public class Am8xImportController extends MgrController {
 
         JPanel helpPanel = new JPanel(new BorderLayout());
         helpPanel.add(new JLabel(
-            "<html><i><b>PC…</b>: seleziona dal tuo PC, viene copiato in station/shared automaticamente. "
-            + "<b>Station…</b>: naviga lo user home Niagara della station.</i></html>"),
+            "<html><div width='360'><i><b>PC…</b>: seleziona dal tuo PC, viene copiato in station/shared automaticamente. "
+            + "<b>Station…</b>: naviga lo user home Niagara della station.</i></div></html>"),
             BorderLayout.CENTER);
 
         JPanel panel = new JPanel(new GridLayout(0, 2, 6, 6));
         panel.add(new JLabel("File XML:"));            panel.add(filePanel);
         panel.add(new JLabel(""));                     panel.add(helpPanel);
+        panel.add(new JLabel("Tipo Device:"));         panel.add(deviceTypeCombo);
         panel.add(new JLabel("Modbus IP:"));           panel.add(ipField);
         panel.add(new JLabel("Porta Modbus:"));        panel.add(portField);
         panel.add(new JLabel("Device Address Start:")); panel.add(devAddrField);
+        panel.setPreferredSize(new Dimension(520, panel.getPreferredSize().height));
 
         int result = JOptionPane.showConfirmDialog(
             null, panel, "Discover — Setup parametri",
@@ -361,6 +399,8 @@ public class Am8xImportController extends MgrController {
             svc.setModbusIpAddress(ipField.getText().trim());
             svc.setModbusTcpPort(Integer.parseInt(portField.getText().trim()));
             svc.setDeviceAddressStart(Integer.parseInt(devAddrField.getText().trim()));
+            svc.setDeviceType(BDynamicEnum.make(
+                deviceTypeCombo.getSelectedIndex(), svc.getDeviceType().getRange()));
             return true;
         } catch (Exception ex) {
             BDialog.error(getManager(), "Discover",

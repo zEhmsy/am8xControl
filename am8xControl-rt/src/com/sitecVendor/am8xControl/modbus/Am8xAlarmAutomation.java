@@ -7,7 +7,7 @@ import javax.baja.alarm.ext.BAlarmSourceExt;
 import javax.baja.alarm.ext.fault.BEnumFaultAlgorithm;
 import javax.baja.alarm.ext.offnormal.BEnumChangeOfStateAlgorithm;
 import javax.baja.alarm.ext.offnormal.BOutOfRangeAlgorithm;
-import com.tridium.modbusTcp.BModbusTcpDevice;
+import com.tridium.modbusCore.client.BModbusClientDevice;
 import com.tridium.modbusTcp.BModbusTcpNetwork;
 import javax.baja.control.BNumericPoint;
 import javax.baja.sys.BComponent;
@@ -98,7 +98,7 @@ public final class Am8xAlarmAutomation {
             }
 
             String deviceSlot = p.getName();
-            if (!(child instanceof BModbusTcpDevice)) continue;
+            if (!(child instanceof BModbusClientDevice)) continue;
 
             AlarmClassNames classes;
             if ("CENTRALE".equals(deviceSlot)) {
@@ -107,7 +107,7 @@ public final class Am8xAlarmAutomation {
                 panelIndex++;
                 classes = ensureAlarmClasses(panelAlarmPrefix(deviceSlot, panelIndex));
             }
-            BComponent pointsContainer = ModbusTreeBuilder.getPointsContainer((BModbusTcpDevice) child);
+            BComponent pointsContainer = ModbusTreeBuilder.getPointsContainer((BModbusClientDevice) child);
             updatedPoints += ensurePointAlarmExtsRecursive(pointsContainer, classes);
         }
 

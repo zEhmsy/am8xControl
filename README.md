@@ -8,7 +8,7 @@
 <h4 align="center">Modulo Niagara 4.15 per l'importazione automatica di centrali antincendio Notifier AM-8200N.</h4>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-3.0.0-blue.svg?cacheSeconds=2592000" />
+  <img alt="Version" src="https://img.shields.io/badge/version-3.1.0-blue.svg?cacheSeconds=2592000" />
   <img alt="Niagara" src="https://img.shields.io/badge/Niagara-4.15-orange.svg" />
   <img alt="Java" src="https://img.shields.io/badge/Java-8-red.svg" />
   <img alt="License" src="https://img.shields.io/badge/License-Apache%202.0-yellow.svg" />
@@ -58,9 +58,16 @@ Se stai utilizzando una release ufficiale con i moduli già compilati e firmati,
 
 1. **Aggiungi il Servizio:** Dalla palette `am8xControl`, trascina `Am8xImportService` nella cartella `/Services` della tua Station.
 2. **Apri il Manager:** Fai doppio clic sul servizio per aprire la vista di importazione.
-3. **Discover:** Clicca sul pulsante **Discover** nella barra in basso, carica il file XML della centrale e imposta IP e Porta Modbus.
+3. **Discover:** Clicca sul pulsante **Discover** nella barra in basso, carica il file XML della centrale, scegli il **Tipo Device** (`ModbusTcp` o `ModbusGateway`) e imposta IP e Porta Modbus.
 4. **Revisione:** Controlla l'albero dei dispositivi trovati. Puoi rinominarli, spostarli di zona o deselezionare quelli non necessari.
-5. **Commit:** Clicca su **Commit**. Il modulo genererà automaticamente l'intera rete Modbus TCP con tutti i point, il device della CENTRALE (per i comandi generali) e i folder organizzati per Loop.
+5. **Commit:** Clicca su **Commit**. Il modulo genererà automaticamente l'intera rete Modbus (TCP o Gateway, secondo la scelta) con tutti i point, il device della CENTRALE (per i comandi generali) e i folder organizzati per Loop.
+
+> **Tipo Device — `ModbusTcp` vs `ModbusGateway`**
+> Nel popup di Discover scegli quale topologia di rete generare:
+> * **ModbusTcp** (default) → `BModbusTcpNetwork` + `BModbusTcpDevice`. Ogni device porta il proprio IP/porta: usalo quando ciascuna centrale è raggiungibile su un endpoint TCP dedicato.
+> * **ModbusGateway** → `BModbusTcpGateway` + `BModbusTcpGatewayDevice`. IP/porta vivono sulla rete e sono condivisi da tutti i device figli (indirizzati per `deviceAddress`): usalo per più centrali dietro un unico gateway Modbus.
+>
+> I point creati sotto `points/` sono identici nei due casi. La creazione è **IP-aware**: reti su IP diversi coesistono; se invece esiste già una rete sullo stesso IP ma di tipo diverso, l'import si ferma con un *Topology Conflict* anziché sovrascrivere.
 
 ---
 
@@ -97,7 +104,7 @@ am8xControl/
 [WB] Apri BAm8xImportService
         ↓ BAm8xImportManager si monta automaticamente in learn mode
 [WB] Pulsante "Discover"
-        ↓ Popup: File XML (PC… | Station…), IP Modbus, Porta, Device Address Start
+        ↓ Popup: File XML (PC… | Station…), Tipo Device (ModbusTcp|ModbusGateway), IP Modbus, Porta, Device Address Start
         ↓ service.discover() invocato via RPC
 [Station] BAm8xImportService.doDiscover()
         ↓ Legge XML → Am8xXmlParser → lista Am8xDeviceDescriptor
@@ -109,7 +116,10 @@ am8xControl/
         ↓ Conferma se ci sono già-importati
         ↓ service.commit() → doAddSelected()
 [Station] doAddSelected()
-        ↓ Crea/aggiorna BModbusTcpNetwork + BModbusTcpDevice per ogni centrale
+        ↓ ensureNetwork IP-aware: riusa la rete sullo stesso IP, o ne crea una nuova
+        ↓   ModbusTcp     → BModbusTcpNetwork + BModbusTcpDevice (IP/porta per device)
+        ↓   ModbusGateway → BModbusTcpGateway + BModbusTcpGatewayDevice (IP/porta sulla rete)
+        ↓   IP uguale ma tipo diverso → IllegalStateException (Topology Conflict)
         ↓ Crea device CENTRALE con punti di controllo generali (Buzzer, Alarm, Zone…)
         ↓ Per ogni candidate selected → crea BAm8xStatePoint + BNumericPoint + Link
 ```
@@ -126,7 +136,9 @@ Due registri per ogni device:
 
 ### Creazione Albero Modbus (`ModbusTreeBuilder`)
 Il costruttore trova (o crea, garantendo l'idempotenza) la gerarchia:
-`Drivers/ModbusTcpNetwork/{Centrale_Name}/points/L{loop}/{device}`.
+`Drivers/{ModbusTcpNetwork|ModbusTcpGateway}/{Centrale_Name}/points/L{loop}/{device}`.
+
+`ensureNetwork(parent, slot, gateway, ip, port)` è **IP-aware**: identifica la rete che già serve l'endpoint `(ip, port)` — per un gateway tramite il suo `ipAddress`, per una rete TCP semplice tramite l'IP di uno qualsiasi dei suoi device. Se la rete esiste con il tipo corretto la riusa; se esiste con il tipo opposto NON fa cast né sovrascrive, ma lancia `IllegalStateException` (Topology Conflict) che `doAddSelected` riporta all'operatore come stato/errore di import.
 
 ### Custom Enum Point (`BAm8xStatePoint`)
 Un point speciale che estende `BEnumPoint` con un enum personalizzato (Normale, Guasto, Allarme, ecc.) e possiede property meta-dati come `valoreCamera`, linkati dinamicamente al corrispettivo Point analogico, oltre che Action dedicate per Esclusione/Inclusione dei sensori, gestite creando point preset *on-the-fly*.
@@ -137,8 +149,8 @@ Un point speciale che estende `BEnumPoint` con un enum personalizzato (Normale, 
 
 ### Dipendenze modulo
 * **Niagara 4.15** — `baja`, `bajaui`, `workbench`, `workbench-mgr`
-* **modbusTcp** — `BModbusTcpNetwork`, `BModbusTcpDevice`
-* **modbusCore** — `BModbusClientNumericProxyExt`, `BModbusClientEnumBitsProxyExt`, `BModbusClientPresetRegisters`, `BFlexAddress`, `BModbusClientPointFolder`
+* **modbusTcp** — `BModbusTcpNetwork`, `BModbusTcpDevice`, `BModbusTcpGateway`, `BModbusTcpGatewayDevice`
+* **modbusCore** — `BModbusClientDevice`, `BModbusClientNumericProxyExt`, `BModbusClientEnumBitsProxyExt`, `BModbusClientPresetRegisters`, `BFlexAddress`, `BModbusClientPointFolder`
 
 ### Limitazioni Note Attuali
 1. **Upload non testato in produzione** — il meccanismo RPC Base64 per il caricamento da PC è stato implementato ma non ancora validato end-to-end sul campo.

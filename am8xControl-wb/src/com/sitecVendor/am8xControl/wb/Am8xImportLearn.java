@@ -152,21 +152,27 @@ public class Am8xImportLearn extends MgrLearn {
                 }
             },
 
-            // Colonna 9 — Analog Addr (EDITABLE)
+            // Colonna 9 — Analog Addr (EDITABLE, vuoto per i sub-moduli M720
+            // perché non hanno punto analogico associato)
             new MgrColumn("Analog Addr", MgrColumn.EDITABLE) {
                 @Override public Object get(Object item) {
-                    return item instanceof BAm8xDiscoveryCandidate
-                        ? ((BAm8xDiscoveryCandidate) item).getAnalogAddress() : 0;
+                    if (!(item instanceof BAm8xDiscoveryCandidate)) return "";
+                    BAm8xDiscoveryCandidate c = (BAm8xDiscoveryCandidate) item;
+                    if (isModuleCandidate(c)) return "";
+                    return c.getAnalogAddress();
                 }
                 @Override public BValue load(MgrEditRow row) throws Exception {
                     Object item = row.getDiscovery();
-                    return item instanceof BAm8xDiscoveryCandidate
-                        ? BInteger.make(((BAm8xDiscoveryCandidate) item).getAnalogAddress())
-                        : BInteger.make(0);
+                    if (!(item instanceof BAm8xDiscoveryCandidate)) return BString.make("");
+                    BAm8xDiscoveryCandidate c = (BAm8xDiscoveryCandidate) item;
+                    if (isModuleCandidate(c)) return BString.make("");
+                    return BInteger.make(c.getAnalogAddress());
                 }
                 @Override public void save(MgrEditRow row, BValue v, Context cx) throws Exception {
                     Object item = row.getDiscovery();
-                    if (item instanceof BAm8xDiscoveryCandidate && v instanceof BInteger)
+                    if (!(item instanceof BAm8xDiscoveryCandidate)) return;
+                    if (isModuleCandidate((BAm8xDiscoveryCandidate) item)) return;
+                    if (v instanceof BInteger)
                         ((BAm8xDiscoveryCandidate) item).setAnalogAddress(((BInteger) v).getInt());
                 }
             },
@@ -236,6 +242,12 @@ public class Am8xImportLearn extends MgrLearn {
     // ────────────────────────────────────────────────────────────────
     // Aggiornamento dati dal report di discovery
     // ────────────────────────────────────────────────────────────────
+
+    /** Riconosce un candidate sub-modulo M720 (slotName tipo L1M3 o L1M3_2). */
+    private static boolean isModuleCandidate(BAm8xDiscoveryCandidate c) {
+        String slot = c.getCandidateSlotName();
+        return slot != null && slot.matches("L\\d+M\\d+(_\\d+)?");
+    }
 
     public void updateDiscoveryData() {
         BAm8xImportService service =

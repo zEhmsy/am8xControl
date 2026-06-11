@@ -28,6 +28,24 @@ public class BAm8xWizardInput extends BStruct {
     public int getDeviceAddressStart() { return getInt(deviceAddressStart); }
     public void setDeviceAddressStart(int v) { setInt(deviceAddressStart, v, null); }
 
+    /** Allowed parent device types selectable in the Discover popup. */
+    public static final BEnumRange DEVICE_TYPE_RANGE =
+            BEnumRange.make(new int[] { 0, 1 }, new String[] { "ModbusTcp", "ModbusGateway" });
+
+    /**
+     * Tipo di device parent da instanziare in fase di import.
+     *   ModbusTcp     → BModbusTcpNetwork  + BModbusTcpDevice
+     *   ModbusGateway → BModbusTcpGateway  + BModbusTcpGatewayDevice
+     * I point creati sotto "points" sono identici nei due casi.
+     */
+    public static final Property deviceType = newProperty(
+            Flags.SUMMARY,
+            BDynamicEnum.make(0, DEVICE_TYPE_RANGE),
+            BFacets.makeEnum(DEVICE_TYPE_RANGE));
+    public BDynamicEnum getDeviceType() { return (BDynamicEnum) get(deviceType); }
+    public void setDeviceType(BDynamicEnum v) { set(deviceType, v, null); }
+    public boolean isGateway() { return getDeviceType().getOrdinal() == 1; }
+
     @Override
     public Type getType() { return TYPE; }
     public static final Type TYPE = Sys.loadType(BAm8xWizardInput.class);
