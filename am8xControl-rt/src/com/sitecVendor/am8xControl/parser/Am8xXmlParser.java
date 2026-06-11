@@ -111,13 +111,23 @@ public final class Am8xXmlParser {
         }
     }
 
+    /**
+     * Ritorna il testo del primo figlio diretto di {@code parent} con tag
+     * {@code tagName}. NON è ricorsivo (al contrario di
+     * {@link Element#getElementsByTagName(String)}, che scenderebbe anche
+     * dentro {@code <SubModule><Module>...}, leggendo il Type di un modulo
+     * nidificato quando il Device padre ha il proprio {@code <Type>} vuoto).
+     */
     private static String getChildText(Element parent, String tagName) {
-        NodeList children = parent.getElementsByTagName(tagName);
-        if (children.getLength() == 0) return "";
-        Node first = children.item(0);
-        if (first == null) return "";
-        String txt = first.getTextContent();
-        return txt == null ? "" : txt.trim();
+        NodeList children = parent.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node n = children.item(i);
+            if (n.getNodeType() == Node.ELEMENT_NODE && tagName.equals(n.getNodeName())) {
+                String txt = n.getTextContent();
+                return txt == null ? "" : txt.trim();
+            }
+        }
+        return "";
     }
 
     private static int parseInt(String s) {
