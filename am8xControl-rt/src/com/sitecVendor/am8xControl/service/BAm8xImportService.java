@@ -452,18 +452,28 @@ public final class BAm8xImportService extends BAbstractService {
                     // panel) e' un re-import intenzionale e non entra nella
                     // mappa — replaceStatePoint continua a fare l'overwrite
                     // come oggi. Un CandidateKey DIVERSO che reclama uno slot
-                    // gia' scritto in QUESTO commit e' la collisione vera:
-                    // senza il contatore il secondo cancellerebbe il primo in
-                    // silenzio.
+                    // gia' scritto in QUESTO commit SOTTO LO STESSO panel e' la
+                    // collisione vera: senza il contatore il secondo
+                    // cancellerebbe il primo in silenzio.
+                    //
+                    // La chiave della mappa include il panelSlot: due panel
+                    // diversi (caso normale su siti multi-panel cablati in
+                    // modo identico) contengono legittimamente entrambi, per
+                    // esempio, "L01S002" sotto folder separate — non e' una
+                    // collisione, e chiavare solo sul nome nudo rinominava
+                    // ogni panel dopo il primo (visto in review).
                     CandidateKey key = CandidateKey.parse(c.getPanelLabel(), deviceSlot).orElse(null);
                     if (key != null) {
-                        CandidateKey previous = writtenThisRun.get(deviceSlot);
+                        String collisionKey = Am8xSlotNames.collisionKey(panelSlot, deviceSlot);
+                        CandidateKey previous = writtenThisRun.get(collisionKey);
                         if (previous != null && !previous.equals(key)) {
                             LOG.warning("[Am8xImportService] collisione slot '" + deviceSlot
-                                    + "': " + previous + " vs " + key);
-                            deviceSlot = Am8xSlotNames.unique(deviceSlot, writtenThisRun::containsKey);
+                                    + "' nel panel '" + panelSlot + "': " + previous + " vs " + key);
+                            deviceSlot = Am8xSlotNames.unique(deviceSlot,
+                                    s -> writtenThisRun.containsKey(Am8xSlotNames.collisionKey(panelSlot, s)));
+                            collisionKey = Am8xSlotNames.collisionKey(panelSlot, deviceSlot);
                         }
-                        writtenThisRun.put(deviceSlot, key);
+                        writtenThisRun.put(collisionKey, key);
                     }
 
                     try {
