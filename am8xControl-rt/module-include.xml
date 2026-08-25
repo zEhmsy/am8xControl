@@ -1,18 +1,17 @@
 <types>
-  <type class="com.sitecVendor.am8xControl.service.BAm8xImportService"
-        name="Am8xImportService"/>
-  <type class="com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryReport"
-        name="Am8xDiscoveryReport"/>
-  <type class="com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryCandidate"
-        name="Am8xDiscoveryCandidate"/>
-  <type class="com.sitecVendor.am8xControl.discovery.BAm8xPanelFolder"
-        name="Am8xPanelFolder"/>
-  <type class="com.sitecVendor.am8xControl.service.BAm8xWizardInput"
-        name="Am8xWizardInput"/>
-  <type class="com.sitecVendor.am8xControl.modbus.BAm8xStatePoint"
-        name="Am8xStatePoint"/>
-  <type class="com.sitecVendor.am8xControl.modbus.BAm8xModuleStatePoint"
-        name="Am8xModuleStatePoint"/>
-  <type class="com.sitecVendor.am8xControl.px.BStatusEnumToImage"
-        name="StatusEnumToImage"/>
+  <!--com.sitecVendor.am8xControl.service-->
+  <type class="com.sitecVendor.am8xControl.service.BAm8xImportService" name="Am8xImportService"/>
+  <!--com.sitecVendor.am8xControl.discovery-->
+  <type class="com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryReport" name="Am8xDiscoveryReport"/>
+  <type class="com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryCandidate" name="Am8xDiscoveryCandidate"/>
+  <type class="com.sitecVendor.am8xControl.discovery.BAm8xPanelFolder" name="Am8xPanelFolder"/>
+  <type class="com.sitecVendor.am8xControl.service.BAm8xWizardInput" name="Am8xWizardInput"/>
+  <!--com.sitecVendor.am8xControl.modbus-->
+  <type class="com.sitecVendor.am8xControl.modbus.BAm8xStatePoint" name="Am8xStatePoint"/>
+  <type class="com.sitecVendor.am8xControl.modbus.BAm8xModuleStatePoint" name="Am8xModuleStatePoint"/>
+  <!--com.sitecVendor.am8xControl.px-->
+  <type class="com.sitecVendor.am8xControl.px.BStatusEnumToImage" name="StatusEnumToImage"/>
+  <!--com.sitecVendor.am8xControl.job-->
+  <type class="com.sitecVendor.am8xControl.job.BAm8xDiscoverJob" name="Am8xDiscoverJob"/>
+  <type class="com.sitecVendor.am8xControl.job.BAm8xCommitJob" name="Am8xCommitJob"/>
 </types>

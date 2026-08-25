@@ -3,6 +3,7 @@ package com.sitecVendor.am8xControl.service;
 import com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryCandidate;
 import com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryReport;
 import com.sitecVendor.am8xControl.discovery.BAm8xPanelFolder;
+import com.sitecVendor.am8xControl.job.BAm8xCommitJob;
 import com.sitecVendor.am8xControl.job.BAm8xDiscoverJob;
 import com.sitecVendor.am8xControl.model.CandidateKey;
 import com.sitecVendor.am8xControl.modbus.Am8xModbusAddressing;
@@ -18,6 +19,9 @@ import com.tridium.modbusCore.client.BModbusClientDevice;
 import com.tridium.modbusTcp.BModbusTcpNetwork;
 
 import javax.baja.file.BIFile;
+import javax.baja.job.BJob;
+import javax.baja.job.BJobState;
+import javax.baja.job.JobCancelException;
 import javax.baja.naming.BOrd;
 import javax.baja.nre.annotations.NiagaraType;
 import javax.baja.nre.annotations.NiagaraAction;
@@ -208,199 +212,234 @@ public final class BAm8xImportService extends BComponent implements BIService {
         return new BAm8xDiscoverJob(this).submit(null);
     }
 
-    /** Crea i point Modbus per i candidate con selected=true. */
+    /** Crea i point Modbus per i candidate con selected=true. Eseguito come BJob: vedi runCommit(BJob). */
     public static final Action addSelected = newAction(Flags.HIDDEN, null);
-    public void addSelected() { invoke(addSelected, null, null); }
-    public void doAddSelected() {
-        setLastError("");
-        setLastImportStatus("addSelected: avvio…");
+    public BOrd addSelected() { return (BOrd) invoke(addSelected, null, null); }
+    public BOrd doAddSelected() { return new BAm8xCommitJob(this).submit(null); }
 
-        BAm8xDiscoveryReport report = getDiscoveryReport();
-        if (report == null) {
-            setLastImportStatus("addSelected FAILED: eseguire prima discover()");
-            return;
-        }
-
-        // Navigate to /Drivers
-        BComponent drivers = resolveDrivers();
-        if (drivers == null) {
-            setLastError("/Drivers non trovato");
-            setLastImportStatus("addSelected FAILED: /Drivers non trovato");
-            LOG.warning("[Am8xImportService] addSelected failed: /Drivers non trovato");
-            return;
-        }
-
-        // Tipo device scelto nel popup Discover (ModbusTcp vs ModbusGateway)
-        boolean gateway = isGatewayMode();
-        LOG.info("[Am8xImportService] addSelected: deviceType ordinal="
-                + getDeviceType().getOrdinal() + " gateway=" + gateway);
-
-        // Network slot: in gateway mode usa un nome dedicato (così il nodo è
-        // chiaramente distinto da una rete TCP) a meno che l'utente non abbia
-        // personalizzato modbusNetworkSlot oltre il default.
-        String networkSlot = getModbusNetworkSlot();
-        if (gateway && (networkSlot == null || networkSlot.isEmpty()
-                || "ModbusTcpNetwork".equals(networkSlot))) {
-            networkSlot = "ModbusTcpGateway";
-        }
-
-        // Ensure Modbus network (devices are created per-panel below).
-        // In gateway mode IP/port vivono sulla rete BModbusTcpGateway.
-        BModbusTcpNetwork network;
+    /**
+     * Corpo di addSelected/commit, eseguito dentro BAm8xCommitJob.
+     *
+     * BSimpleJob chiama success() se questo metodo ritorna normalmente: la
+     * cancellazione va quindi propagata come JobCancelException, mai con un
+     * return silenzioso (vedi BAm8xDiscoverJob per lo stesso pattern).
+     */
+    public void runCommit(BJob job) throws Exception {
         try {
-            network = ModbusTreeBuilder.ensureNetwork(drivers, networkSlot, gateway,
-                    getModbusIpAddress(), getModbusTcpPort() > 0 ? getModbusTcpPort() : 502);
-            LOG.info("[Am8xImportService] addSelected: network slot=" + networkSlot
-                    + " type=" + network.getType());
-        } catch (Exception e) {
-            setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
-            setLastImportStatus("addSelected FAILED: " + e.getMessage());
-            LOG.severe("[Am8xImportService] addSelected network failed: " + e.getMessage());
-            return;
-        }
+            setLastError("");
+            setLastImportStatus("addSelected: avvio…");
 
-        // ====== NUOVA LOGICA: CREAZIONE DEVICE STATICO "CENTRALE" ======
-        Am8xAlarmAutomation.ensureAlarmClasses("Z");
-        try {
-            int port = getModbusTcpPort() > 0 ? getModbusTcpPort() : 502;
-            BModbusClientDevice centraleDev = ModbusTreeBuilder.ensureDevice(
-                    network, "CENTRALE", getModbusIpAddress(), port, 1, gateway);
-            BComponent centralePoints = ModbusTreeBuilder.getPointsContainer(centraleDev);
-            if (centralePoints != null) {
-                // Estrai tutte le zone dai candidati per la CENTRALE
-                java.util.Map<Integer, String> zones = new java.util.TreeMap<>();
-                for (BAm8xPanelFolder panel : report.getPanelFolders()) {
-                    for (BAm8xDiscoveryCandidate c : panel.getCandidates()) {
-                        int z = c.getZoneAddress();
-                        if (z > 0) {
-                            if (!zones.containsKey(z) || zones.get(z) == null || zones.get(z).isEmpty()) {
-                                zones.put(z, c.getZoneLabel());
+            BAm8xDiscoveryReport report = getDiscoveryReport();
+            if (report == null) {
+                setLastImportStatus("addSelected FAILED: eseguire prima discover()");
+                throw new IllegalStateException("eseguire prima discover()");
+            }
+
+            // Navigate to /Drivers
+            BComponent drivers = resolveDrivers();
+            if (drivers == null) {
+                setLastError("/Drivers non trovato");
+                setLastImportStatus("addSelected FAILED: /Drivers non trovato");
+                LOG.warning("[Am8xImportService] addSelected failed: /Drivers non trovato");
+                throw new IllegalStateException("/Drivers non trovato");
+            }
+
+            // Tipo device scelto nel popup Discover (ModbusTcp vs ModbusGateway)
+            boolean gateway = isGatewayMode();
+            LOG.info("[Am8xImportService] addSelected: deviceType ordinal="
+                    + getDeviceType().getOrdinal() + " gateway=" + gateway);
+
+            // Network slot: in gateway mode usa un nome dedicato (così il nodo è
+            // chiaramente distinto da una rete TCP) a meno che l'utente non abbia
+            // personalizzato modbusNetworkSlot oltre il default.
+            String networkSlot = getModbusNetworkSlot();
+            if (gateway && (networkSlot == null || networkSlot.isEmpty()
+                    || "ModbusTcpNetwork".equals(networkSlot))) {
+                networkSlot = "ModbusTcpGateway";
+            }
+
+            // Ensure Modbus network (devices are created per-panel below).
+            // In gateway mode IP/port vivono sulla rete BModbusTcpGateway.
+            BModbusTcpNetwork network;
+            try {
+                network = ModbusTreeBuilder.ensureNetwork(drivers, networkSlot, gateway,
+                        getModbusIpAddress(), getModbusTcpPort() > 0 ? getModbusTcpPort() : 502);
+                LOG.info("[Am8xImportService] addSelected: network slot=" + networkSlot
+                        + " type=" + network.getType());
+            } catch (Exception e) {
+                setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
+                setLastImportStatus("addSelected FAILED: " + e.getMessage());
+                LOG.severe("[Am8xImportService] addSelected network failed: " + e.getMessage());
+                throw e;
+            }
+
+            // ====== NUOVA LOGICA: CREAZIONE DEVICE STATICO "CENTRALE" ======
+            Am8xAlarmAutomation.ensureAlarmClasses("Z");
+            try {
+                int port = getModbusTcpPort() > 0 ? getModbusTcpPort() : 502;
+                BModbusClientDevice centraleDev = ModbusTreeBuilder.ensureDevice(
+                        network, "CENTRALE", getModbusIpAddress(), port, 1, gateway);
+                BComponent centralePoints = ModbusTreeBuilder.getPointsContainer(centraleDev);
+                if (centralePoints != null) {
+                    // Estrai tutte le zone dai candidati per la CENTRALE
+                    java.util.Map<Integer, String> zones = new java.util.TreeMap<>();
+                    for (BAm8xPanelFolder panel : report.getPanelFolders()) {
+                        for (BAm8xDiscoveryCandidate c : panel.getCandidates()) {
+                            int z = c.getZoneAddress();
+                            if (z > 0) {
+                                if (!zones.containsKey(z) || zones.get(z) == null || zones.get(z).isEmpty()) {
+                                    zones.put(z, c.getZoneLabel());
+                                }
                             }
                         }
                     }
+                    ModbusPointFactory.populateCentralePoints(centralePoints, zones);
                 }
-                ModbusPointFactory.populateCentralePoints(centralePoints, zones);
-            }
-        } catch (Exception e) {
-            LOG.warning("[Am8xImportService] Errore creazione device CENTRALE: " + e.getMessage());
-        }
-        // ===============================================================
-
-        int created   = 0;
-        int skipped   = 0;
-        int panelsUsed = 0;
-        int panelAlarmIndex = 0;
-
-        for (BAm8xPanelFolder panel : report.getPanelFolders()) {
-            // Trova lo slot name del panel dal suo Property nel report
-            String panelSlot = panelSlotNameOf(report, panel);
-            if (panelSlot == null) continue;
-            panelAlarmIndex++;
-            Am8xAlarmAutomation.AlarmClassNames panelAlarmClasses =
-                    Am8xAlarmAutomation.ensureAlarmClasses(
-                            Am8xAlarmAutomation.panelAlarmPrefix(panelSlot, panelAlarmIndex));
-
-            // Crea/aggiorna BModbusTcpDevice con la config del panel
-            String ip   = panel.getIpAddress();
-            int    port = panel.getPort() > 0 ? panel.getPort() : 502;
-            int    devAddr = panel.getDeviceAddress();
-
-            BModbusClientDevice dev;
-            try {
-                dev = ModbusTreeBuilder.ensureDevice(network, panelSlot, ip, port, devAddr, gateway);
             } catch (Exception e) {
-                LOG.warning("[Am8xImportService] ensureDevice for " + panelSlot
-                        + " failed: " + e.getMessage());
-                continue;
+                LOG.warning("[Am8xImportService] Errore creazione device CENTRALE: " + e.getMessage());
             }
+            // ===============================================================
 
-            BComponent pointsContainer = ModbusTreeBuilder.getPointsContainer(dev);
-            if (pointsContainer == null) {
-                LOG.warning("[Am8xImportService] no 'points' slot on device " + panelSlot);
-                continue;
+            // total = candidate selezionati, calcolato prima del ciclo: è il numero
+            // che l'utente legge nella tabella, quindi la percentuale del job
+            // corrisponde a qualcosa di riconoscibile.
+            int total = 0;
+            for (BAm8xPanelFolder panel : report.getPanelFolders()) {
+                for (BAm8xDiscoveryCandidate c : panel.getCandidates()) {
+                    if (c.getSelected()) total++;
+                }
             }
-            panelsUsed++;
-            java.util.Set<String> parentModuleSlotsWithSubModules =
-                    parentModuleSlotsWithSubModules(panel);
+            int done = 0;
 
-            for (BAm8xDiscoveryCandidate c : panel.getCandidates()) {
-                String loopSlot   = String.format("L%02d", c.getLoopNumber());
-                String deviceSlot = buildSlotName(c);     // es. "L01S001"
+            int created   = 0;
+            int skipped   = 0;
+            int panelsUsed = 0;
+            int panelAlarmIndex = 0;
 
-                if (parentModuleSlotsWithSubModules.contains(deviceSlot)) {
-                    removeLegacyParentModulePoint(pointsContainer, loopSlot, deviceSlot);
-                    skipped++;
-                    continue;
-                }
+            for (BAm8xPanelFolder panel : report.getPanelFolders()) {
+                // Trova lo slot name del panel dal suo Property nel report
+                String panelSlot = panelSlotNameOf(report, panel);
+                if (panelSlot == null) continue;
+                panelAlarmIndex++;
+                Am8xAlarmAutomation.AlarmClassNames panelAlarmClasses =
+                        Am8xAlarmAutomation.ensureAlarmClasses(
+                                Am8xAlarmAutomation.panelAlarmPrefix(panelSlot, panelAlarmIndex));
 
-                if (!c.getSelected()) { skipped++; continue; }
+                // Crea/aggiorna BModbusTcpDevice con la config del panel
+                String ip   = panel.getIpAddress();
+                int    port = panel.getPort() > 0 ? panel.getPort() : 502;
+                int    devAddr = panel.getDeviceAddress();
 
-                boolean sensorPoint = isSensorPointSlot(deviceSlot);
-
-                if (c.getAlreadyImported()) {
-                    BAm8xStatePoint existingStatePt =
-                            Am8xAlarmAutomation.findStatePoint(pointsContainer, loopSlot, deviceSlot);
-                    if (existingStatePt != null) {
-                        if (existingStatePt instanceof BAm8xModuleStatePoint) {
-                            BComponent pointParent = existingStatePt.getParentComponent();
-                            existingStatePt = ModbusPointFactory.migrateStatePointType(
-                                    pointParent, existingStatePt);
-                        }
-                        if (existingStatePt != null) existingStatePt.ensureCommandConfigSlots();
-                    }
-                    Am8xAlarmAutomation.ensureStatePointAlarmExts(existingStatePt, panelAlarmClasses);
-                    skipped++;
-                    continue;
-                }
-
+                BModbusClientDevice dev;
                 try {
-                    BComponent loopFolder = ModbusTreeBuilder.ensureFolder(pointsContainer, loopSlot);
-
-                    // Punto State custom (nome = deviceSlot, senza suffisso _State)
-                    BAm8xStatePoint statePt = ModbusPointFactory.createStatePoint(
-                            loopFolder, deviceSlot, c.getStateAddress(),
-                            c.getDeviceType(), c.getDeviceLabel(),
-                            c.getZoneAddress(), c.getZoneLabel());
-
-                    if (statePt != null) {
-                        statePt.ensureCommandConfigSlots();
-                    }
-
-                    javax.baja.control.BNumericPoint analogPt = null;
-                    if (sensorPoint) {
-                        String analogSlot = deviceSlot + "_Analog";
-                        analogPt = ModbusPointFactory.createNumericPoint(
-                                loopFolder, analogSlot, c.getAnalogAddress());
-
-                        Am8xAlarmAutomation.ensureValoreCameraAlarmExt(analogPt, panelAlarmClasses);
-
-                        if (analogPt != null && statePt != null) {
-                            ModbusPointFactory.createLink(analogPt, statePt, "valoreCamera");
-                        }
-                    }
-                    Am8xAlarmAutomation.ensureStatePointAlarmExts(statePt, panelAlarmClasses);
-
-                    c.setAlreadyImported(true);
-                    if (statePt != null || analogPt != null) created++;
-                    else                                     skipped++;
+                    dev = ModbusTreeBuilder.ensureDevice(network, panelSlot, ip, port, devAddr, gateway);
                 } catch (Exception e) {
-                    LOG.warning("[Am8xImportService] addSelected candidate " + deviceSlot
+                    LOG.warning("[Am8xImportService] ensureDevice for " + panelSlot
                             + " failed: " + e.getMessage());
+                    continue;
+                }
+
+                BComponent pointsContainer = ModbusTreeBuilder.getPointsContainer(dev);
+                if (pointsContainer == null) {
+                    LOG.warning("[Am8xImportService] no 'points' slot on device " + panelSlot);
+                    continue;
+                }
+                panelsUsed++;
+                java.util.Set<String> parentModuleSlotsWithSubModules =
+                        parentModuleSlotsWithSubModules(panel);
+
+                for (BAm8xDiscoveryCandidate c : panel.getCandidates()) {
+                    if (job.getJobState() == BJobState.canceling) throw new JobCancelException();
+                    done++;
+                    job.progress(total == 0 ? 100 : done * 100 / total);
+
+                    String loopSlot   = String.format("L%02d", c.getLoopNumber());
+                    String deviceSlot = buildSlotName(c);     // es. "L01S001"
+
+                    if (parentModuleSlotsWithSubModules.contains(deviceSlot)) {
+                        removeLegacyParentModulePoint(pointsContainer, loopSlot, deviceSlot);
+                        skipped++;
+                        continue;
+                    }
+
+                    if (!c.getSelected()) { skipped++; continue; }
+
+                    boolean sensorPoint = isSensorPointSlot(deviceSlot);
+
+                    if (c.getAlreadyImported()) {
+                        BAm8xStatePoint existingStatePt =
+                                Am8xAlarmAutomation.findStatePoint(pointsContainer, loopSlot, deviceSlot);
+                        if (existingStatePt != null) {
+                            if (existingStatePt instanceof BAm8xModuleStatePoint) {
+                                BComponent pointParent = existingStatePt.getParentComponent();
+                                existingStatePt = ModbusPointFactory.migrateStatePointType(
+                                        pointParent, existingStatePt);
+                            }
+                            if (existingStatePt != null) existingStatePt.ensureCommandConfigSlots();
+                        }
+                        Am8xAlarmAutomation.ensureStatePointAlarmExts(existingStatePt, panelAlarmClasses);
+                        skipped++;
+                        continue;
+                    }
+
+                    try {
+                        BComponent loopFolder = ModbusTreeBuilder.ensureFolder(pointsContainer, loopSlot);
+
+                        // Punto State custom (nome = deviceSlot, senza suffisso _State)
+                        BAm8xStatePoint statePt = ModbusPointFactory.createStatePoint(
+                                loopFolder, deviceSlot, c.getStateAddress(),
+                                c.getDeviceType(), c.getDeviceLabel(),
+                                c.getZoneAddress(), c.getZoneLabel());
+
+                        if (statePt != null) {
+                            statePt.ensureCommandConfigSlots();
+                        }
+
+                        javax.baja.control.BNumericPoint analogPt = null;
+                        if (sensorPoint) {
+                            String analogSlot = deviceSlot + "_Analog";
+                            analogPt = ModbusPointFactory.createNumericPoint(
+                                    loopFolder, analogSlot, c.getAnalogAddress());
+
+                            Am8xAlarmAutomation.ensureValoreCameraAlarmExt(analogPt, panelAlarmClasses);
+
+                            if (analogPt != null && statePt != null) {
+                                ModbusPointFactory.createLink(analogPt, statePt, "valoreCamera");
+                            }
+                        }
+                        Am8xAlarmAutomation.ensureStatePointAlarmExts(statePt, panelAlarmClasses);
+
+                        c.setAlreadyImported(true);
+                        if (statePt != null || analogPt != null) created++;
+                        else                                     skipped++;
+                    } catch (Exception e) {
+                        LOG.warning("[Am8xImportService] addSelected candidate " + deviceSlot
+                                + " failed: " + e.getMessage());
+                    }
                 }
             }
-        }
 
-        setAddedCount(getAddedCount() + created);
-        setLastImportStatus("addSelected OK — " + created + " creati, " + skipped
-                + " saltati, " + panelsUsed + " centrali");
-        LOG.info("[Am8xImportService] addSelected: " + created + " created, "
-                + skipped + " skipped, " + panelsUsed + " panels");
+            setAddedCount(getAddedCount() + created);
+            setLastImportStatus("addSelected OK — " + created + " creati, " + skipped
+                    + " saltati, " + panelsUsed + " centrali");
+            LOG.info("[Am8xImportService] addSelected: " + created + " created, "
+                    + skipped + " skipped, " + panelsUsed + " panels");
+
+        } catch (JobCancelException e) {
+            // Cancellazione, non un fallimento: non toccare lastError/lastImportStatus.
+            throw e;
+        } catch (Exception e) {
+            setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
+            setLastImportStatus("commit FAILED: " + e.getMessage());
+            LOG.severe("[Am8xImportService] commit failed: " + e.getMessage());
+            throw e;
+        }
     }
 
     /** Alias per addSelected() usato dalla UI */
     public static final Action commit = newAction(Flags.OPERATOR, null);
-    public void commit() { invoke(commit, null, null); }
-    public void doCommit() { doAddSelected(); }
+    public BOrd commit() { return (BOrd) invoke(commit, null, null); }
+    public BOrd doCommit() { return doAddSelected(); }
 
     /** Rimuove tutti i candidate e formatta i counter */
     public static final Action clearAll = newAction(Flags.OPERATOR, null);
