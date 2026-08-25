@@ -53,7 +53,7 @@ class CandidateKeyParseTest {
     @Test
     void returnsEmptyOnMalformedNamesInsteadOfThrowing() {
         String[] bad = { "", "L01", "LxxS002", "S002", "L01X002", "L01S002_", "L01M003_x",
-                         "Loop01Sensor2", "CENTRALE", "L01S002 " };
+                         "Loop01Sensor2", "CENTRALE", "L01S002 ", "L01S002_1" };
         for (String s : bad) {
             Optional<CandidateKey> r = CandidateKey.parse("P", s);
             assertFalse(r.isPresent(), "doveva essere empty: '" + s + "'");

@@ -112,7 +112,11 @@ public final class CandidateKey {
         }
     }
 
-    /** Inverso di {@link #toSlotName()}. Il panel non è codificato nello slot: si passa. */
+    /** Inverso di {@link #toSlotName()}. Il panel non è codificato nello slot: si passa.
+     *  Assume larghezze canoniche: 2 cifre per loop, 3 per posizione (per es. L01S002, L09M123).
+     *  Valori fuori range (loop > 99, posizione > 999) producono Optional.empty(),
+     *  non errori: una panel ipotetica con >99 loop perderebbe silenziosamente i tag am8x.
+     */
     private static final Pattern SLOT = Pattern.compile("L(\\d{2})([SM])(\\d{3})(?:_(\\d+))?");
 
     public static Optional<CandidateKey> parse(String panel, String slotName) {
