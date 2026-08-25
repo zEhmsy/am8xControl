@@ -5,6 +5,9 @@ import com.sitecVendor.am8xControl.parser.Am8xSubModuleDescriptor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Identificatore stabile di un singolo device (sensore o sub-modulo).
@@ -107,6 +110,28 @@ public final class CandidateKey {
             default:
                 return String.format("L%02dS%03d", loop, pos);
         }
+    }
+
+    /** Inverso di {@link #toSlotName()}. Il panel non è codificato nello slot: si passa. */
+    private static final Pattern SLOT = Pattern.compile("L(\\d{2})([SM])(\\d{3})(?:_(\\d+))?");
+
+    public static Optional<CandidateKey> parse(String panel, String slotName) {
+        if (slotName == null) return Optional.empty();
+        Matcher m = SLOT.matcher(slotName);
+        if (!m.matches()) return Optional.empty();
+
+        int loop = Integer.parseInt(m.group(1));
+        int pos  = Integer.parseInt(m.group(3));
+        boolean module = "M".equals(m.group(2));
+        String chGroup = m.group(4);
+
+        if (chGroup != null) {
+            if (!module) return Optional.empty();   // un sensore non ha canali
+            int ch = Integer.parseInt(chGroup);
+            return Optional.of(new CandidateKey(panel, loop, pos, pos, ch, Kind.SUB_MODULE));
+        }
+        return Optional.of(new CandidateKey(panel, loop, pos, -1, -1,
+                module ? Kind.MODULE : Kind.SENSOR));
     }
 
     // ----------------------------------------------------------------
