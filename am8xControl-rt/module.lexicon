@@ -1,3 +1,8 @@
 #
 # Lexicon for the am8xControl module.
 #
+import.fail.noDrivers=Cartella /Drivers non trovata nella station
+import.fail.noReport=Eseguire prima un discover
+import.fail.xml=File XML illeggibile o non valido
+import.fail.upload=Upload del file XML fallito
+import.fail.job=Import fallito

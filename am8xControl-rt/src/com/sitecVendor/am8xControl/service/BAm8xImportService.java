@@ -27,6 +27,7 @@ import javax.baja.nre.annotations.NiagaraType;
 import javax.baja.nre.annotations.NiagaraAction;
 import javax.baja.nre.annotations.NoSlotomatic;
 import javax.baja.sys.*;
+import javax.baja.util.Lexicon;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -47,7 +48,7 @@ import java.util.logging.Logger;
  */
 @NiagaraType
 @NoSlotomatic
-public final class BAm8xImportService extends BComponent implements BIService {
+public final class BAm8xImportService extends BAbstractService {
 
     private static final Logger LOG = Logger.getLogger(BAm8xImportService.class.getName());
     private static final String DEFAULT_RESOURCE = "/resources/test.xml";
@@ -146,6 +147,30 @@ public final class BAm8xImportService extends BComponent implements BIService {
     public void setPendingUploadB64(String v) { setString(pendingUploadB64, v, null); }
 
     ////////////////////////////////////////////////////////////////
+    // Fault reporting — configFail()/configOk() rendono l'esito dell'import
+    // visibile nell'albero della station, non solo in lastError/JUL.
+    ////////////////////////////////////////////////////////////////
+
+    /**
+     * Traccia se il fault corrente è nostro. configOk() va chiamato SOLO dopo un
+     * nostro configFail(), altrimenti si cancella il fault di qualcun altro.
+     * Transiente per natura: lo stato di fault di un BComponent è runtime, non
+     * persistito, quindi dopo un riavvio si riparte puliti (scelta della spec).
+     */
+    private boolean inConfigFail = false;
+
+    private void fail(String lexKey, String detail) {
+        inConfigFail = true;
+        String msg = Lexicon.make("am8xControl").getText(lexKey);
+        setLastError(msg + ": " + detail);
+        configFail(msg + ": " + detail);
+    }
+
+    private void clearFail() {
+        if (inConfigFail) { inConfigFail = false; configOk(); }
+    }
+
+    ////////////////////////////////////////////////////////////////
     // Actions
     ////////////////////////////////////////////////////////////////
 
@@ -172,7 +197,7 @@ public final class BAm8xImportService extends BComponent implements BIService {
             setXmlFilePath(BOrd.make(sharedFileOrd(name)));
         } catch (Exception e) {
             LOG.severe("[Am8xImportService] uploadXml failed: " + e.getMessage());
-            setLastError("upload failed: " + e.getMessage());
+            fail("import.fail.upload", e.getMessage());
         } finally {
             // Pulisci i buffer per non occupare memoria con i bytes
             setPendingUploadB64("");
@@ -208,6 +233,7 @@ public final class BAm8xImportService extends BComponent implements BIService {
     public static final Action discover = newAction(Flags.OPERATOR, null);
     public BOrd discover() { return (BOrd) invoke(discover, null, null); }
     public BOrd doDiscover() {
+        clearFail();
         setLastError("");
         return new BAm8xDiscoverJob(this).submit(null);
     }
@@ -215,7 +241,10 @@ public final class BAm8xImportService extends BComponent implements BIService {
     /** Crea i point Modbus per i candidate con selected=true. Eseguito come BJob: vedi runCommit(BJob). */
     public static final Action addSelected = newAction(Flags.HIDDEN, null);
     public BOrd addSelected() { return (BOrd) invoke(addSelected, null, null); }
-    public BOrd doAddSelected() { return new BAm8xCommitJob(this).submit(null); }
+    public BOrd doAddSelected() {
+        clearFail();
+        return new BAm8xCommitJob(this).submit(null);
+    }
 
     /**
      * Corpo di addSelected/commit, eseguito dentro BAm8xCommitJob.
@@ -235,6 +264,7 @@ public final class BAm8xImportService extends BComponent implements BIService {
 
             BAm8xDiscoveryReport report = getDiscoveryReport();
             if (report == null) {
+                fail("import.fail.noReport", "discovery report assente");
                 setLastImportStatus("addSelected FAILED: eseguire prima discover()");
                 throw new IllegalStateException("eseguire prima discover()");
             }
@@ -242,7 +272,7 @@ public final class BAm8xImportService extends BComponent implements BIService {
             // Navigate to /Drivers
             BComponent drivers = resolveDrivers();
             if (drivers == null) {
-                setLastError("/Drivers non trovato");
+                fail("import.fail.noDrivers", "resolveDrivers() ha restituito null");
                 setLastImportStatus("addSelected FAILED: /Drivers non trovato");
                 LOG.warning("[Am8xImportService] addSelected failed: /Drivers non trovato");
                 throw new IllegalStateException("/Drivers non trovato");
@@ -445,7 +475,7 @@ public final class BAm8xImportService extends BComponent implements BIService {
                     + skipped + " skipped so far");
             throw e;
         } catch (Exception e) {
-            setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
+            fail("import.fail.job", e.getClass().getSimpleName() + ": " + e.getMessage());
             setLastImportStatus("commit FAILED: " + e.getMessage());
             LOG.severe("[Am8xImportService] commit failed: " + e.getMessage());
             throw e;
@@ -828,15 +858,21 @@ public final class BAm8xImportService extends BComponent implements BIService {
                         lastEx = e;
                     }
                 }
+                String failDetail = lastEx != null
+                        ? lastEx.getClass().getSimpleName() + " " + lastEx.getMessage()
+                        : "tutti i tentativi falliti";
+                fail("import.fail.xml", failDetail);
                 throw new IllegalStateException("Impossibile leggere XML da '" + ordStr + "': "
-                        + (lastEx != null ? lastEx.getClass().getSimpleName() + " " + lastEx.getMessage() : "tutti i tentativi falliti"),
-                        lastEx);
+                        + failDetail, lastEx);
             }
         }
         try (InputStream in = BAm8xImportService.class.getResourceAsStream(DEFAULT_RESOURCE)) {
             if (in == null)
                 throw new IllegalStateException("Risorsa default non trovata: " + DEFAULT_RESOURCE);
             return Am8xXmlParser.parseStream(in);
+        } catch (Exception e) {
+            fail("import.fail.xml", e.getMessage());
+            throw e;
         }
     }
 
