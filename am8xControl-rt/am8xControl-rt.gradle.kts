@@ -4,6 +4,7 @@
 
 import com.tridium.gradle.plugins.bajadoc.task.Bajadoc
 import com.tridium.gradle.plugins.module.util.ModulePart.RuntimeProfile.*
+import java.time.Instant
 
 plugins {
   id("com.tridium.niagara-module")
@@ -39,10 +40,39 @@ tasks.named<Bajadoc>("bajadoc") {
   includePackage("com.sitecVendor.am8xControl")
 }
 
+// Banner di versione: stampa moduleVersion/gitCommit/buildTime nel jar così un
+// campo può identificare il build in esecuzione sulla station senza doverlo
+// dedurre dal nome file. gitCommit arriva da fuori (-Pam8xGitCommit) invece
+// che da un `git rev-parse` eseguito nel container: il container di build
+// monta solo /work con uid diverso dall'host, quindi git ci rifiuta la
+// repository come "dubious ownership" senza una safe.directory persistita —
+// cosa che lo script di build non fa. L'host invece ha già un checkout git
+// funzionante, quindi il commit si passa come proprietà Gradle.
+val generateVersionProperties by tasks.registering {
+  val outDir = layout.buildDirectory.dir("generated/version/com/sitecVendor/am8xControl")
+  val gitCommit = (project.findProperty("am8xGitCommit") as String?) ?: "unknown"
+  val moduleVersionValue = project.version.toString()
+  outputs.dir(outDir)
+  doLast {
+    val f = outDir.get().file("version.properties").asFile
+    f.parentFile.mkdirs()
+    f.writeText(
+      "moduleName=am8xControl\n" +
+      "moduleVersion=${moduleVersionValue}\n" +
+      "buildTime=${Instant.now()}\n" +
+      "gitCommit=${gitCommit}\n"
+    )
+  }
+}
+
 tasks.named<Jar>("jar") {
+  dependsOn(generateVersionProperties)
   from("src") {
     include("img/**")
     include("resources/**")
+  }
+  from(generateVersionProperties.get().outputs.files) {
+    into("com/sitecVendor/am8xControl")
   }
 }
 

@@ -34,6 +34,7 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Properties;
 import java.util.logging.Logger;
 
 /**
@@ -134,6 +135,12 @@ public final class BAm8xImportService extends BAbstractService {
             newProperty(Flags.SUMMARY | Flags.READONLY, 0, null);
     public int getAddedCount() { return getInt(addedCount); }
     public void setAddedCount(int v) { setInt(addedCount, v, null); }
+
+    /** Versione del modulo che sta girando: leggibile senza fermare la station. */
+    public static final Property moduleVersion =
+            newProperty(Flags.READONLY | Flags.SUMMARY | Flags.TRANSIENT, "unknown", null);
+    public String getModuleVersion() { return getString(moduleVersion); }
+    public void setModuleVersion(String v) { setString(moduleVersion, v, null); }
 
     // Upload XML dal WB client: il WB scrive bytes (base64) + nome qui, poi invoca uploadXml.
     public static final Property pendingUploadName =
@@ -735,6 +742,9 @@ public final class BAm8xImportService extends BAbstractService {
 
     @Override
     public void serviceStarted() throws Exception {
+        String banner = readVersionBanner();
+        setModuleVersion(banner);
+        LOG.info("[am8xControl] " + banner + " — " + safeOrd());
         LOG.info("[Am8xImportService] serviceStarted — " + safeOrd());
         setLastImportStatus("service started");
         refreshAlarmAutomationForExistingTree();
@@ -996,6 +1006,17 @@ public final class BAm8xImportService extends BAbstractService {
 
     private String safeOrd() {
         try { return getNavOrd().toString(); } catch (Exception e) { return "<unmounted>"; }
+    }
+
+    /** Non lancia mai: un jar costruito fuori da Gradle deve comunque partire. */
+    private static String readVersionBanner() {
+        Properties p = new Properties();
+        try (InputStream in = BAm8xImportService.class.getResourceAsStream("version.properties")) {
+            if (in != null) p.load(in);
+        } catch (Exception ignore) {}
+        return p.getProperty("moduleVersion", "unknown")
+             + " build " + p.getProperty("gitCommit", "unknown")
+             + " (" + p.getProperty("buildTime", "unknown") + ")";
     }
 
     ////////////////////////////////////////////////////////////////
