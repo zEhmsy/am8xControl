@@ -4,11 +4,14 @@ import com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryCandidate;
 import com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryReport;
 import com.sitecVendor.am8xControl.discovery.BAm8xPanelFolder;
 import com.sitecVendor.am8xControl.service.BAm8xImportService;
+import javax.baja.job.BJob;
+import javax.baja.job.BJobState;
 import javax.baja.sys.BBoolean;
 import javax.baja.sys.BInteger;
 import javax.baja.sys.BString;
 import javax.baja.sys.BValue;
 import javax.baja.sys.Context;
+import javax.baja.ui.BDialog;
 import javax.baja.workbench.mgr.MgrColumn;
 import javax.baja.workbench.mgr.MgrEditRow;
 import javax.baja.workbench.mgr.MgrLearn;
@@ -247,6 +250,18 @@ public class Am8xImportLearn extends MgrLearn {
     private static boolean isModuleCandidate(BAm8xDiscoveryCandidate c) {
         String slot = c.getCandidateSlotName();
         return slot != null && slot.matches("L\\d+M\\d+(_\\d+)?");
+    }
+
+    /** Chiamato dal framework quando il job aggancia lo stato finale. */
+    @Override
+    public void jobComplete(BJob job) {
+        super.jobComplete(job);
+        updateDiscoveryData();
+        updateTable();
+        if (job.getJobState() == BJobState.failed) {
+            BDialog.error(getManager(), "Import",
+                    "Import fallito: " + job.readLog().getString(), (Throwable) null);
+        }
     }
 
     public void updateDiscoveryData() {

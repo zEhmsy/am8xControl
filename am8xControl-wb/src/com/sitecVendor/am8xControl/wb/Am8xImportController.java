@@ -19,7 +19,6 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
-import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.GridLayout;
@@ -97,14 +96,10 @@ public class Am8xImportController extends MgrController {
         @Override
         public CommandArtifact doInvoke(CommandEvent ev) throws Exception {
             if (!showDiscoverDialog()) return null;
-            getService().discover();
-            // discover() è ASYNC, fa polling refresh ogni 400ms per ~4s
-            new Thread(() -> {
-                for (int i = 0; i < 10; i++) {
-                    try { Thread.sleep(400); } catch (InterruptedException ignore) {}
-                    SwingUtilities.invokeLater(() -> refresh());
-                }
-            }, "Am8x-DiscoverPoll").start();
+            BOrd jobOrd = getService().discover();
+            // setJob dà barra di progresso e cancel standard; il refresh finale
+            // arriva da Am8xImportLearn.jobComplete(). Niente polling.
+            getImportLearn().setJob(jobOrd);
             return null;
         }
     }
@@ -114,17 +109,7 @@ public class Am8xImportController extends MgrController {
         @Override
         public CommandArtifact doInvoke(CommandEvent ev) throws Exception {
             getService().clearAll();
-            // Clear all è RPC: il proxy WB può essere ancora stale dopo
-            // l'invocazione. Facciamo un hardRefresh subito + alcuni
-            // refresh leggeri per intercettare l'update del report quando
-            // arriva dalla station.
             hardRefresh();
-            new Thread(() -> {
-                for (int i = 0; i < 6; i++) {
-                    try { Thread.sleep(250); } catch (InterruptedException ignore) {}
-                    SwingUtilities.invokeLater(() -> hardRefresh());
-                }
-            }, "Am8x-ClearPoll").start();
             return null;
         }
     }
@@ -228,27 +213,11 @@ public class Am8xImportController extends MgrController {
                     BDialog.YES_NO);
                 if (r != BDialog.YES) return null;
             }
-            getService().commit(); // Esegue l'azione sulla station (RPC)
-            refresh();
-            
-            String status = "Operazione completata";
-            try {
-                javax.baja.sys.BComponent stSvc = (javax.baja.sys.BComponent) getService().getNavOrd().resolve(javax.baja.sys.Sys.getStation(), null).get();
-                status = ((javax.baja.sys.BString) stSvc.get("lastImportStatus")).getString();
-            } catch (Exception ignore) {
-                status = getService().getLastImportStatus();
-            }
-
-            boolean failed = status != null
-                    && (status.contains("FAILED") || status.contains("Conflict"));
-            if (failed) {
-                BDialog.error(getManager(), "Commit non riuscito",
-                    "Import non completato.\nDettaglio: " + status, (Throwable) null);
-            } else {
-                BDialog.info(getManager(), "Commit Completato",
-                    "I dispositivi Modbus sono stati processati.\n" +
-                    "Dettaglio: " + status);
-            }
+            BOrd jobOrd = getService().commit(); // Esegue l'azione sulla station (job async)
+            // setJob dà barra di progresso e cancel standard; il refresh finale e
+            // l'eventuale dialog di errore arrivano da Am8xImportLearn.jobComplete().
+            // Niente polling ne' dialog sincrono qui: il job non e' ancora finito.
+            getImportLearn().setJob(jobOrd);
             return null;
         }
     }
