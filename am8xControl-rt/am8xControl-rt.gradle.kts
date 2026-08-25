@@ -51,14 +51,19 @@ tasks.named<Bajadoc>("bajadoc") {
 val generateVersionProperties by tasks.registering {
   val outDir = layout.buildDirectory.dir("generated/version/com/sitecVendor/am8xControl")
   val gitCommit = (project.findProperty("am8xGitCommit") as String?) ?: "unknown"
-  val moduleVersionValue = project.version.toString()
+  // Stessa fonte di verità di vendorVersion in module.xml: il plugin com.tridium.vendor
+  // popola moduleManifest.vendorVersion (via vendor { defaultModuleVersion(...) } nel
+  // build.gradle.kts di root) su ogni progetto che applica com.tridium.niagara-module.
+  // Provider risolto pigro (in doLast), niente valore letterale copiato qui: se la
+  // versione nel blocco vendor{} cambia, questo file la segue automaticamente.
+  val moduleVersionProvider = moduleManifest.vendorVersion.orElse("unknown")
   outputs.dir(outDir)
   doLast {
     val f = outDir.get().file("version.properties").asFile
     f.parentFile.mkdirs()
     f.writeText(
       "moduleName=am8xControl\n" +
-      "moduleVersion=${moduleVersionValue}\n" +
+      "moduleVersion=${moduleVersionProvider.get()}\n" +
       "buildTime=${Instant.now()}\n" +
       "gitCommit=${gitCommit}\n"
     )
