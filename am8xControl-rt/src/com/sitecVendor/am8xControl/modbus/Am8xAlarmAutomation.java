@@ -18,6 +18,8 @@ import javax.baja.sys.Property;
 import javax.baja.sys.ServiceNotFoundException;
 import javax.baja.sys.Sys;
 import javax.baja.util.BFormat;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -89,16 +91,8 @@ public final class Am8xAlarmAutomation {
 
         int panelIndex = 0;
         int updatedPoints = 0;
-        for (Property p : network.getPropertiesArray()) {
-            BValue child;
-            try {
-                child = network.get(p);
-            } catch (Exception ignore) {
-                continue;
-            }
-
-            String deviceSlot = p.getName();
-            if (!(child instanceof BModbusClientDevice)) continue;
+        for (BModbusClientDevice device : collectDevices(network)) {
+            String deviceSlot = device.getName();
 
             AlarmClassNames classes;
             if ("CENTRALE".equals(deviceSlot)) {
@@ -107,7 +101,7 @@ public final class Am8xAlarmAutomation {
                 panelIndex++;
                 classes = ensureAlarmClasses(panelAlarmPrefix(deviceSlot, panelIndex));
             }
-            BComponent pointsContainer = ModbusTreeBuilder.getPointsContainer((BModbusClientDevice) child);
+            BComponent pointsContainer = ModbusTreeBuilder.getPointsContainer(device);
             updatedPoints += ensurePointAlarmExtsRecursive(pointsContainer, classes);
         }
 
@@ -116,6 +110,29 @@ public final class Am8xAlarmAutomation {
                     + updatedPoints + " existing points");
         }
         return updatedPoints;
+    }
+
+    /**
+     * Naviga la network per ottenere i device Modbus, in ordine di property.
+     * Condivisa con BAm8xImportService.collectImportedPoints (retro-applicazione
+     * dei display name): è lo stesso albero attraversato da
+     * ensureExistingTreeAlarmExts, e duplicare il walk creerebbe due percorsi
+     * che possono divergere.
+     */
+    public static List<BModbusClientDevice> collectDevices(BModbusTcpNetwork network) {
+        List<BModbusClientDevice> out = new ArrayList<>();
+        if (network == null) return out;
+
+        for (Property p : network.getPropertiesArray()) {
+            BValue child;
+            try {
+                child = network.get(p);
+            } catch (Exception ignore) {
+                continue;
+            }
+            if (child instanceof BModbusClientDevice) out.add((BModbusClientDevice) child);
+        }
+        return out;
     }
 
     public static BAm8xStatePoint findStatePoint(BComponent pointsContainer, String loopSlot, String pointSlot) {

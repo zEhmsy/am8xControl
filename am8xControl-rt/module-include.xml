@@ -14,6 +14,7 @@
   <!--com.sitecVendor.am8xControl.job-->
   <type class="com.sitecVendor.am8xControl.job.BAm8xDiscoverJob" name="Am8xDiscoverJob"/>
   <type class="com.sitecVendor.am8xControl.job.BAm8xCommitJob" name="Am8xCommitJob"/>
+  <type class="com.sitecVendor.am8xControl.job.BAm8xDisplayNameJob" name="Am8xDisplayNameJob"/>
   <!--com.sitecVendor.am8xControl.tags-->
   <type class="com.sitecVendor.am8xControl.tags.BAm8xTagDictionary" name="Am8xTagDictionary"/>
 </types>

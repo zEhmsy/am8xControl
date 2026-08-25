@@ -5,7 +5,11 @@ import com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryReport;
 import com.sitecVendor.am8xControl.discovery.BAm8xPanelFolder;
 import com.sitecVendor.am8xControl.job.BAm8xCommitJob;
 import com.sitecVendor.am8xControl.job.BAm8xDiscoverJob;
+import com.sitecVendor.am8xControl.job.BAm8xDisplayNameJob;
 import com.sitecVendor.am8xControl.model.CandidateKey;
+import com.sitecVendor.am8xControl.semantics.Am8xDisplayNameFormatter;
+import com.sitecVendor.am8xControl.semantics.Am8xIdentity;
+import com.sitecVendor.am8xControl.semantics.Am8xIdentitySource;
 import com.sitecVendor.am8xControl.semantics.Am8xSlotNames;
 import com.sitecVendor.am8xControl.modbus.Am8xModbusAddressing;
 import com.sitecVendor.am8xControl.modbus.Am8xAlarmAutomation;
@@ -28,13 +32,16 @@ import javax.baja.nre.annotations.NiagaraType;
 import javax.baja.nre.annotations.NiagaraAction;
 import javax.baja.nre.annotations.NoSlotomatic;
 import javax.baja.sys.*;
+import javax.baja.util.BFormat;
 import javax.baja.util.Lexicon;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.logging.Logger;
 
@@ -112,6 +119,12 @@ public final class BAm8xImportService extends BAbstractService {
     public BDynamicEnum getDeviceType() { return (BDynamicEnum) get(deviceType); }
     public void setDeviceType(BDynamicEnum v) { set(deviceType, v, null); }
     public boolean isGatewayMode() { return getDeviceType().getOrdinal() == 1; }
+
+    /** Template del display name. Lo slot name resta canonico: questo è additivo. */
+    public static final Property displayNameFormat =
+            newProperty(Flags.SUMMARY, "%name% — %deviceLabel%", null);
+    public String getDisplayNameFormat() { return getString(displayNameFormat); }
+    public void setDisplayNameFormat(String v) { setString(displayNameFormat, v, null); }
 
     ////////////////////////////////////////////////////////////////
     // Properties — stato runtime (readonly)
@@ -487,6 +500,7 @@ public final class BAm8xImportService extends BAbstractService {
 
                         if (statePt != null) {
                             statePt.ensureCommandConfigSlots();
+                            applyDisplayName(statePt);
                         }
 
                         javax.baja.control.BNumericPoint analogPt = null;
@@ -541,6 +555,100 @@ public final class BAm8xImportService extends BAbstractService {
     public static final Action commit = newAction(Flags.OPERATOR, null);
     public BOrd commit() { return (BOrd) invoke(commit, null, null); }
     public BOrd doCommit() { return doAddSelected(); }
+
+    ////////////////////////////////////////////////////////////////
+    // Display name a template — Fase display name
+    ////////////////////////////////////////////////////////////////
+
+    /**
+     * Scrive il display name solo se diverso: evita mutazioni inutili
+     * dell'albero (es. rilanciare l'action su migliaia di point invariati).
+     *
+     * Il display name in Niagara si imposta sul PARENT tramite la Property
+     * con cui il figlio è montato (setDisplayName(Property, BFormat, Context)
+     * — non esiste un setter diretto sul componente stesso). Il template è
+     * già risolto in una stringa letterale da Am8xDisplayNameFormatter: qui
+     * si raddoppia ogni '%' prima di passarlo a BFormat.make(), perché nel
+     * parser di BFormat "%%" è l'escape del carattere letterale '%' — non
+     * esiste un BFormat.escape() nella API (verificato con javap).
+     */
+    public void applyDisplayName(BComponent point) {
+        Optional<Am8xIdentity> maybe = Am8xIdentitySource.fromComponent(point);
+        if (!maybe.isPresent()) return;
+
+        BComponent parent = point.getParentComponent();
+        Property propInParent = point.getPropertyInParentComponent();
+        if (parent == null || propInParent == null) return;
+
+        String wanted = Am8xDisplayNameFormatter.render(
+                getDisplayNameFormat(), point.getName(), maybe.get());
+        String current = point.getDisplayName(null);
+        if (!wanted.equals(current)) {
+            parent.setDisplayName(propInParent, BFormat.make(escapeForFormat(wanted)), null);
+        }
+    }
+
+    private static String escapeForFormat(String literal) {
+        return literal.replace("%", "%%");
+    }
+
+    /** Riapplica i display name all'albero esistente. L'operatore decide quando. */
+    public static final Action applyDisplayNames = newAction(Flags.OPERATOR, null);
+    public BOrd applyDisplayNames() { return (BOrd) invoke(applyDisplayNames, null, null); }
+    public BOrd doApplyDisplayNames() { return new BAm8xDisplayNameJob(this).submit(null); }
+
+    /**
+     * Corpo di applyDisplayNames, eseguito dentro BAm8xDisplayNameJob.
+     *
+     * BSimpleJob chiama success() se run() ritorna normalmente: la
+     * cancellazione va propagata come JobCancelException (vedi
+     * BAm8xDiscoverJob per lo stesso pattern), mai con un break silenzioso.
+     */
+    public void runApplyDisplayNames(BJob job) throws Exception {
+        List<BComponent> points = collectImportedPoints();
+        int total = points.size();
+        int done = 0;
+        for (BComponent p : points) {
+            if (job.getJobState() == BJobState.canceling) throw new JobCancelException();
+            applyDisplayName(p);
+            done++;
+            job.progress(total == 0 ? 100 : done * 100 / total);
+        }
+        setLastImportStatus("display name applicati: " + done);
+    }
+
+    /**
+     * Cammina l'albero importato per raccogliere tutti i BAm8xStatePoint:
+     * stessa navigazione device -> pointsContainer di
+     * Am8xAlarmAutomation.ensureExistingTreeAlarmExts (via
+     * Am8xAlarmAutomation.collectDevices), riusata qui invece di duplicarla —
+     * è lo stesso albero e due walk indipendenti potrebbero divergere.
+     */
+    private List<BComponent> collectImportedPoints() {
+        List<BComponent> out = new ArrayList<>();
+        BModbusTcpNetwork network = findExistingNetwork();
+        if (network == null) return out;
+
+        for (BModbusClientDevice device : Am8xAlarmAutomation.collectDevices(network)) {
+            BComponent pointsContainer = ModbusTreeBuilder.getPointsContainer(device);
+            collectStatePointsRecursive(pointsContainer, out);
+        }
+        return out;
+    }
+
+    private static void collectStatePointsRecursive(BComponent parent, List<BComponent> out) {
+        if (parent == null) return;
+        if (parent instanceof BAm8xStatePoint) {
+            out.add(parent);
+            return;
+        }
+        for (Property p : parent.getPropertiesArray()) {
+            try {
+                BValue child = parent.get(p);
+                if (child instanceof BComponent) collectStatePointsRecursive((BComponent) child, out);
+            } catch (Exception ignore) {}
+        }
+    }
 
     /** Rimuove tutti i candidate e formatta i counter */
     public static final Action clearAll = newAction(Flags.OPERATOR, null);
