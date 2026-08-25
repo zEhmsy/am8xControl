@@ -3,6 +3,7 @@ package com.sitecVendor.am8xControl.service;
 import com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryCandidate;
 import com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryReport;
 import com.sitecVendor.am8xControl.discovery.BAm8xPanelFolder;
+import com.sitecVendor.am8xControl.job.BAm8xDiscoverJob;
 import com.sitecVendor.am8xControl.model.CandidateKey;
 import com.sitecVendor.am8xControl.modbus.Am8xModbusAddressing;
 import com.sitecVendor.am8xControl.modbus.Am8xAlarmAutomation;
@@ -202,71 +203,11 @@ public final class BAm8xImportService extends BComponent implements BIService {
     }
 
     /** Parsa l'XML e popola discovery/ con i BAm8xDiscoveryCandidate. */
-    public static final Action discover = newAction(Flags.OPERATOR | Flags.ASYNC, null);
-    public void discover() { invoke(discover, null, null); }
-    public void doDiscover() {
+    public static final Action discover = newAction(Flags.OPERATOR, null);
+    public BOrd discover() { return (BOrd) invoke(discover, null, null); }
+    public BOrd doDiscover() {
         setLastError("");
-        setLastImportStatus("discover: parsing XML…");
-        try {
-            List<Am8xDeviceDescriptor> descriptors = loadDescriptors();
-            BAm8xDiscoveryReport report = ensureDiscoveryReport();
-
-            // Preserva la configurazione (IP/port/deviceAddress) dei panel esistenti:
-            // svuota solo i candidate, non i panel folder.
-            report.clearAllCandidates();
-
-            // Calcola il prossimo deviceAddress disponibile a partire dai panel esistenti
-            int maxDeviceAddr = getDeviceAddressStart() - 1;
-            for (BAm8xPanelFolder pf : report.getPanelFolders()) {
-                if (pf.getDeviceAddress() > maxDeviceAddr) maxDeviceAddr = pf.getDeviceAddress();
-            }
-
-            int count = 0;
-            for (Am8xDeviceDescriptor d : descriptors) {
-                CandidateKey key = CandidateKey.forDevice(d);
-                String panelSlot = key.toPanelSlotName();
-
-                boolean isNew = report.getPanelFolder(panelSlot) == null;
-                BAm8xPanelFolder panelFolder = report.ensurePanelFolder(panelSlot);
-
-                // Aggiorna sempre IP e porta dal service (l'utente li imposta nel popup Discover)
-                panelFolder.setIpAddress(getModbusIpAddress());
-                panelFolder.setPort(getModbusTcpPort() > 0 ? getModbusTcpPort() : 502);
-                // deviceAddress: assegna solo ai nuovi panel (non cambiare l'address già assegnato)
-                if (isNew && panelFolder.getDeviceAddress() <= 0) {
-                    panelFolder.setDeviceAddress(++maxDeviceAddr);
-                }
-
-                // Device diretto: sensore o modulo senza sub-canali.
-                // Se il modulo contiene sub-moduli, si importano solo i canali (LxxMxxx_N).
-                if (!d.hasSubModules()) {
-                    addCandidate(panelFolder, key, d, null);
-                    count++;
-                }
-
-                // Sub-moduli/canali
-                for (Am8xSubModuleDescriptor sub : d.getSubModules()) {
-                    CandidateKey subKey = CandidateKey.forSubModule(d, sub);
-                    addCandidate(panelFolder, subKey, d, sub);
-                    count++;
-                }
-            }
-
-            setParsedCount(count);
-            report.setTotalCandidates(count);
-            report.refreshSelectedCount();
-            report.setLastRunTimestamp(
-                    new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()));
-
-            setLastImportStatus("discover OK — " + descriptors.size()
-                    + " device, " + count + " candidate");
-            LOG.info("[Am8xImportService] discover OK: " + count + " candidates");
-
-        } catch (Exception e) {
-            setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
-            setLastImportStatus("discover FAILED");
-            LOG.severe("[Am8xImportService] discover failed: " + e.getMessage());
-        }
+        return new BAm8xDiscoverJob(this).submit(null);
     }
 
     /** Crea i point Modbus per i candidate con selected=true. */
@@ -717,7 +658,7 @@ public final class BAm8xImportService extends BComponent implements BIService {
     // Internals — discovery
     ////////////////////////////////////////////////////////////////
 
-    private BAm8xDiscoveryReport ensureDiscoveryReport() {
+    public BAm8xDiscoveryReport ensureDiscoveryReport() {
         // Try to reuse existing child
         try {
             BValue v = get(DISCOVERY_SLOT);
@@ -748,8 +689,8 @@ public final class BAm8xImportService extends BComponent implements BIService {
         } catch (Exception ignore) { return null; }
     }
 
-    private void addCandidate(BAm8xPanelFolder parent, CandidateKey key,
-                               Am8xDeviceDescriptor d, Am8xSubModuleDescriptor sub) {
+    public void addCandidate(BAm8xPanelFolder parent, CandidateKey key,
+                              Am8xDeviceDescriptor d, Am8xSubModuleDescriptor sub) {
         BAm8xDiscoveryCandidate c = new BAm8xDiscoveryCandidate();
         c.setPanelLabel(d.getPanelLabel());
         c.setLoopNumber(key.getLoop());
@@ -790,7 +731,7 @@ public final class BAm8xImportService extends BComponent implements BIService {
     // Internals — XML loading
     ////////////////////////////////////////////////////////////////
 
-    private List<Am8xDeviceDescriptor> loadDescriptors() throws Exception {
+    public List<Am8xDeviceDescriptor> loadDescriptors() throws Exception {
         BOrd ord = getXmlFilePath();
         if (ord != null && !BOrd.DEFAULT.equals(ord)) {
             String ordStr = ord.toString();
