@@ -45,3 +45,27 @@ tasks.named<Jar>("jar") {
     include("resources/**")
   }
 }
+
+// Test JUnit 5 sulla sola logica pura (nessuna dipendenza da baja a runtime).
+// Directory dedicata: 'srcTest' appartiene al test harness Niagara, che qui non si usa.
+// Configurato in afterEvaluate: il plugin com.tridium.niagara-module riscrive i srcDirs
+// del sourceSet 'test' durante la propria configurazione afterEvaluate, quindi un blocco
+// sourceSets{} a livello di script verrebbe sovrascritto se non applicato più tardi.
+afterEvaluate {
+  sourceSets {
+    named("test") {
+      java.setSrcDirs(listOf("srcJUnit"))
+      resources.setSrcDirs(emptyList<String>())
+    }
+  }
+}
+
+dependencies {
+  testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+  testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.named<Test>("test") {
+  useJUnitPlatform()
+  testLogging { events("passed", "failed", "skipped") }
+}
