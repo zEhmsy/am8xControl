@@ -115,6 +115,7 @@ public class BAm8xDiscoverJob extends BSimpleJob {
             // Cancellazione, non un fallimento: non toccare lastError/lastImportStatus.
             throw e;
         } catch (Exception e) {
+            svc.reportJobFailure("import.fail.job", e.getClass().getSimpleName() + ": " + e.getMessage());
             svc.setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
             svc.setLastImportStatus("discover FAILED");
             LOG.severe("[Am8xDiscoverJob] discover failed: " + e.getMessage());

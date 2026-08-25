@@ -170,6 +170,17 @@ public final class BAm8xImportService extends BAbstractService {
         if (inConfigFail) { inConfigFail = false; configOk(); }
     }
 
+    /**
+     * Porta d'accesso pubblica e volutamente stretta a fail(), per le classi
+     * BJob (pacchetto .job) che non possono chiamare il metodo private. Usata
+     * da BAm8xDiscoverJob per segnalare un fallimento del job come fault del
+     * servizio. clearFail() resta privato: solo questo componente decide
+     * quando il proprio fault e' risolto.
+     */
+    public void reportJobFailure(String lexKey, String detail) {
+        fail(lexKey, detail);
+    }
+
     ////////////////////////////////////////////////////////////////
     // Actions
     ////////////////////////////////////////////////////////////////
