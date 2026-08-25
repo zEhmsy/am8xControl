@@ -14,15 +14,27 @@
          scope e' obbligatorio: senza almeno un HierarchyScope con scopeOrd la
          hierarchy non interroga nulla e resta silenziosamente vuota (verificato
          su QueryUtil.resolveQueryOnScopes: con BHierarchyScope[] vuoto il ciclo
-         sulle scope non esegue nessuna query). "station:" copre l'intero
-         albero della station, dove risiede il driver Modbus con i device am8x. -->
+         sulle scope non esegue nessuna query). "station:|slot:/Drivers" limita
+         la ricerca al sottoalbero dove vive il driver Modbus con i device am8x,
+         evitando di scandire inutilmente Services, History e l'albero allarmi. -->
+
+    <!-- ATTENZIONE - punti senza zona: am8x:zone viene emesso da
+         BAm8xTagDictionary solo se zoneAddress non e' vuoto (tag condizionale,
+         vedi BAm8xTagDictionary.implied). Un punto con am8x:kind ma senza
+         indirizzo di zona non puo' essere collocato dal livello 'livelloZona'
+         qui sotto e quindi NON COMPARE in nessuna delle due hierarchy, in modo
+         silenzioso (nessun errore, nessun fault). Resta comunque raggiungibile
+         normalmente nell'albero del driver Modbus. Non abbiamo introdotto un
+         livello "senza zona" di raccolta perche' non sappiamo ancora quanto
+         sia comune questo caso sui dati reali importati: da verificare nel
+         collaudo su VM prima di decidere se serve una tale variante. -->
 
     <!-- CONSIGLIATA con piu' centrali: i numeri di zona si ripetono fra centrali,
          e una gerarchia zona-first le fonderebbe in un nodo solo. -->
     <p m="hierarchy=hierarchy" t="hierarchy:Hierarchy" n="AM8x_PerCentrale">
       <p n="scope" t="hierarchy:HierarchyScopeContainer">
         <p n="Station" t="hierarchy:HierarchyScope">
-          <p n="scopeOrd" t="b:Ord" v="station:" />
+          <p n="scopeOrd" t="b:Ord" v="station:|slot:/Drivers" />
         </p>
       </p>
       <p n="livelloPanel" t="hierarchy:GroupLevelDef">
@@ -40,11 +52,15 @@
     </p>
 
     <!-- Variante piatta per impianto a centrale singola, dove il livello
-         'centrale' aggiungerebbe solo un nodo inutile. -->
+         'centrale' aggiungerebbe solo un nodo inutile.
+
+         ATTENZIONE - punti senza zona: vedi la nota sopra su AM8x_PerCentrale,
+         valida identicamente qui: un punto con am8x:kind ma senza
+         am8x:zone non compare in questa hierarchy. -->
     <p m="hierarchy=hierarchy" t="hierarchy:Hierarchy" n="AM8x_PerZona">
       <p n="scope" t="hierarchy:HierarchyScopeContainer">
         <p n="Station" t="hierarchy:HierarchyScope">
-          <p n="scopeOrd" t="b:Ord" v="station:" />
+          <p n="scopeOrd" t="b:Ord" v="station:|slot:/Drivers" />
         </p>
       </p>
       <p n="livelloZona" t="hierarchy:GroupLevelDef">
