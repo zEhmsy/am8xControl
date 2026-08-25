@@ -72,7 +72,7 @@ tasks.named<Jar>("jar") {
     include("resources/**")
   }
   from(generateVersionProperties.get().outputs.files) {
-    into("com/sitecVendor/am8xControl")
+    into("com/sitecVendor/am8xControl/service")
   }
 }
 
