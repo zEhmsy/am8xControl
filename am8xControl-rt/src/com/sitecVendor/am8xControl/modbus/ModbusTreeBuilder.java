@@ -1,11 +1,13 @@
 package com.sitecVendor.am8xControl.modbus;
 
+import com.sitecVendor.am8xControl.semantics.Am8xSlotNames;
 import com.tridium.modbusCore.client.BModbusClientDevice;
 import com.tridium.modbusCore.client.point.BModbusClientPointFolder;
 import com.tridium.modbusTcp.BModbusTcpDevice;
 import com.tridium.modbusTcp.BModbusTcpGateway;
 import com.tridium.modbusTcp.BModbusTcpGatewayDevice;
 import com.tridium.modbusTcp.BModbusTcpNetwork;
+import javax.baja.naming.SlotPath;
 import javax.baja.sys.*;
 import java.util.logging.Logger;
 
@@ -166,14 +168,9 @@ public final class ModbusTreeBuilder {
 
     /** Returns the desired slot if free, otherwise the first free numbered variant. */
     private static String freeSlot(BComponent parent, String desired) {
-        try {
-            if (parent.get(desired) == null) return desired;
-        } catch (Exception ignore) { return desired; }
-        for (int i = 2; i < 100; i++) {
-            String s = desired + i;
-            try { if (parent.get(s) == null) return s; } catch (Exception ignore) { return s; }
-        }
-        return desired;
+        return Am8xSlotNames.unique(desired, s -> {
+            try { return parent.get(s) != null; } catch (Exception e) { return false; }
+        });
     }
 
     private static void applyNetworkSettings(BModbusTcpGateway net, String ip, int port) {
@@ -236,12 +233,14 @@ public final class ModbusTreeBuilder {
 
     /**
      * Finds or creates a BModbusClientPointFolder under the given parent.
-     * Used for loop folders (L01, L02) and device folders (L01S002, L01M003).
+     * Used only for loop folders (L01, L02); state points are created directly
+     * under the loop folder by {@link ModbusPointFactory#createStatePoint}.
      *
      * Must be a BModbusClientPointFolder (not plain BComponent) so the Database
      * view of the Modbus device walks into it and shows the contained points.
      */
     public static BComponent ensureFolder(BComponent parent, String slotName) {
+        slotName = SlotPath.escape(slotName);
         try {
             BValue v = parent.get(slotName);
             if (v instanceof BComponent) return (BComponent) v;

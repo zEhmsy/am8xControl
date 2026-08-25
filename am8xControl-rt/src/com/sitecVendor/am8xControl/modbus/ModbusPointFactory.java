@@ -10,6 +10,7 @@ import javax.baja.control.BNumericPoint;
 import javax.baja.control.BBooleanPoint;
 import javax.baja.control.BNumericWritable;
 import javax.baja.naming.BOrd;
+import javax.baja.naming.SlotPath;
 import javax.baja.sys.*;
 import com.tridium.modbusCore.client.point.BModbusClientBooleanProxyExt;
 import java.util.logging.Logger;
@@ -56,6 +57,7 @@ public final class ModbusPointFactory {
             BComponent parent, String slotName, int address,
             String deviceType, String deviceLabel, int zoneAddress, String zoneLabel) {
 
+        slotName = SlotPath.escape(slotName);
         try {
             BValue existing = parent.get(slotName);
             if (existing instanceof BAm8xModuleStatePoint) {

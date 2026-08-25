@@ -6,6 +6,7 @@ import com.sitecVendor.am8xControl.discovery.BAm8xPanelFolder;
 import com.sitecVendor.am8xControl.job.BAm8xCommitJob;
 import com.sitecVendor.am8xControl.job.BAm8xDiscoverJob;
 import com.sitecVendor.am8xControl.model.CandidateKey;
+import com.sitecVendor.am8xControl.semantics.Am8xSlotNames;
 import com.sitecVendor.am8xControl.modbus.Am8xModbusAddressing;
 import com.sitecVendor.am8xControl.modbus.Am8xAlarmAutomation;
 import com.sitecVendor.am8xControl.modbus.ModbusPointFactory;
@@ -366,6 +367,13 @@ public final class BAm8xImportService extends BAbstractService {
             int panelsUsed = 0;
             int panelAlarmIndex = 0;
 
+            // Rileva le collisioni di slot name DENTRO questo commit: due
+            // CandidateKey diversi che finiscono sullo stesso slotName. Vive
+            // solo per la durata di questo commit — NON va confusa con un
+            // re-import (stesso CandidateKey), che deve continuare a passare
+            // da replaceStatePoint senza toccare il contatore.
+            java.util.Map<String, CandidateKey> writtenThisRun = new java.util.HashMap<>();
+
             for (BAm8xPanelFolder panel : report.getPanelFolders()) {
                 // Trova lo slot name del panel dal suo Property nel report
                 String panelSlot = panelSlotNameOf(report, panel);
@@ -437,6 +445,25 @@ public final class BAm8xImportService extends BAbstractService {
                         Am8xAlarmAutomation.ensureStatePointAlarmExts(existingStatePt, panelAlarmClasses);
                         skipped++;
                         continue;
+                    }
+
+                    // Rileva la collisione PRIMA di creare qualunque slot: uno
+                    // stesso CandidateKey visto di nuovo qui (stesso loop/pos/
+                    // panel) e' un re-import intenzionale e non entra nella
+                    // mappa — replaceStatePoint continua a fare l'overwrite
+                    // come oggi. Un CandidateKey DIVERSO che reclama uno slot
+                    // gia' scritto in QUESTO commit e' la collisione vera:
+                    // senza il contatore il secondo cancellerebbe il primo in
+                    // silenzio.
+                    CandidateKey key = CandidateKey.parse(c.getPanelLabel(), deviceSlot).orElse(null);
+                    if (key != null) {
+                        CandidateKey previous = writtenThisRun.get(deviceSlot);
+                        if (previous != null && !previous.equals(key)) {
+                            LOG.warning("[Am8xImportService] collisione slot '" + deviceSlot
+                                    + "': " + previous + " vs " + key);
+                            deviceSlot = Am8xSlotNames.unique(deviceSlot, writtenThisRun::containsKey);
+                        }
+                        writtenThisRun.put(deviceSlot, key);
                     }
 
                     try {
