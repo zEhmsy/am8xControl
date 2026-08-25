@@ -225,6 +225,10 @@ public final class BAm8xImportService extends BComponent implements BIService {
      * return silenzioso (vedi BAm8xDiscoverJob per lo stesso pattern).
      */
     public void runCommit(BJob job) throws Exception {
+        // Dichiarati fuori dal try: il catch di JobCancelException deve poterli
+        // leggere per registrare quanto era stato scritto prima della cancellazione.
+        int created = 0;
+        int skipped = 0;
         try {
             setLastError("");
             setLastImportStatus("addSelected: avvio…");
@@ -311,8 +315,6 @@ public final class BAm8xImportService extends BComponent implements BIService {
             }
             int done = 0;
 
-            int created   = 0;
-            int skipped   = 0;
             int panelsUsed = 0;
             int panelAlarmIndex = 0;
 
@@ -349,9 +351,10 @@ public final class BAm8xImportService extends BComponent implements BIService {
                         parentModuleSlotsWithSubModules(panel);
 
                 for (BAm8xDiscoveryCandidate c : panel.getCandidates()) {
+                    // Il check di cancellazione resta qui, prima dei filtri: la
+                    // cancellazione deve restare reattiva anche durante una lunga
+                    // sequenza di candidate deselezionati.
                     if (job.getJobState() == BJobState.canceling) throw new JobCancelException();
-                    done++;
-                    job.progress(total == 0 ? 100 : done * 100 / total);
 
                     String loopSlot   = String.format("L%02d", c.getLoopNumber());
                     String deviceSlot = buildSlotName(c);     // es. "L01S001"
@@ -363,6 +366,12 @@ public final class BAm8xImportService extends BComponent implements BIService {
                     }
 
                     if (!c.getSelected()) { skipped++; continue; }
+
+                    // total conta solo i candidate selezionati: done/progress
+                    // avanzano solo qui, altrimenti supererebbero il 100% non
+                    // appena il panel contiene candidate deselezionati.
+                    done++;
+                    job.progress(total == 0 ? 100 : done * 100 / total);
 
                     boolean sensorPoint = isSensorPointSlot(deviceSlot);
 
@@ -426,7 +435,14 @@ public final class BAm8xImportService extends BComponent implements BIService {
                     + skipped + " skipped, " + panelsUsed + " panels");
 
         } catch (JobCancelException e) {
-            // Cancellazione, non un fallimento: non toccare lastError/lastImportStatus.
+            // Cancellazione, non un fallimento: non toccare lastError (resta
+            // esclusivo del path di fallimento genuino). lastImportStatus e
+            // addedCount vanno comunque aggiornati con quanto scritto finora,
+            // cosi' un nuovo commit puo' riprendere in modo idempotente.
+            setAddedCount(getAddedCount() + created);
+            setLastImportStatus("addSelected CANCELLED — " + created + " creati, " + skipped + " saltati");
+            LOG.info("[Am8xImportService] addSelected cancelled: " + created + " created, "
+                    + skipped + " skipped so far");
             throw e;
         } catch (Exception e) {
             setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
