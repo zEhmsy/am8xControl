@@ -35,6 +35,7 @@ dependencies {
   api(":alarm-rt")
   api(":tagdictionary-rt")
   api(":kitControl-rt")
+  api(":hierarchy-rt")
 }
 
 tasks.named<Bajadoc>("bajadoc") {

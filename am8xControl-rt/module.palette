@@ -6,5 +6,53 @@
          I tag sono calcolati, non scritti: funzionano anche sugli alberi
          importati con versioni precedenti del modulo. -->
     <p m="am8x2=am8xControl" t="am8x2:Am8xTagDictionary" n="Am8xTagDictionary" />
+
+    <!-- Trascinare in Services/HierarchyService. Richiede che Am8xTagDictionary
+         sia gia' installato in Services/TagDictionaryService, altrimenti i tag
+         am8x:* non esistono e le hierarchy restano vuote.
+
+         scope e' obbligatorio: senza almeno un HierarchyScope con scopeOrd la
+         hierarchy non interroga nulla e resta silenziosamente vuota (verificato
+         su QueryUtil.resolveQueryOnScopes: con BHierarchyScope[] vuoto il ciclo
+         sulle scope non esegue nessuna query). "station:" copre l'intero
+         albero della station, dove risiede il driver Modbus con i device am8x. -->
+
+    <!-- CONSIGLIATA con piu' centrali: i numeri di zona si ripetono fra centrali,
+         e una gerarchia zona-first le fonderebbe in un nodo solo. -->
+    <p m="hierarchy=hierarchy" t="hierarchy:Hierarchy" n="AM8x_PerCentrale">
+      <p n="scope" t="hierarchy:HierarchyScopeContainer">
+        <p n="Station" t="hierarchy:HierarchyScope">
+          <p n="scopeOrd" t="b:Ord" v="station:" />
+        </p>
+      </p>
+      <p n="livelloPanel" t="hierarchy:GroupLevelDef">
+        <p n="groupBy" t="b:String" v="am8x:panel" />
+      </p>
+      <p n="livelloLoop" t="hierarchy:GroupLevelDef">
+        <p n="groupBy" t="b:String" v="am8x:loop" />
+      </p>
+      <p n="livelloZona" t="hierarchy:GroupLevelDef">
+        <p n="groupBy" t="b:String" v="am8x:zone" />
+      </p>
+      <p n="foglie" t="hierarchy:QueryLevelDef">
+        <p n="query" t="b:String" v="am8x:kind" />
+      </p>
+    </p>
+
+    <!-- Variante piatta per impianto a centrale singola, dove il livello
+         'centrale' aggiungerebbe solo un nodo inutile. -->
+    <p m="hierarchy=hierarchy" t="hierarchy:Hierarchy" n="AM8x_PerZona">
+      <p n="scope" t="hierarchy:HierarchyScopeContainer">
+        <p n="Station" t="hierarchy:HierarchyScope">
+          <p n="scopeOrd" t="b:Ord" v="station:" />
+        </p>
+      </p>
+      <p n="livelloZona" t="hierarchy:GroupLevelDef">
+        <p n="groupBy" t="b:String" v="am8x:zone" />
+      </p>
+      <p n="foglie" t="hierarchy:QueryLevelDef">
+        <p n="query" t="b:String" v="am8x:kind" />
+      </p>
+    </p>
 </p>
 </bajaObjectGraph>
