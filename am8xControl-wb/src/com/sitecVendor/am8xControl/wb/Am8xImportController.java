@@ -97,6 +97,11 @@ public class Am8xImportController extends MgrController {
         public CommandArtifact doInvoke(CommandEvent ev) throws Exception {
             if (!showDiscoverDialog()) return null;
             BOrd jobOrd = getService().discover();
+            if (jobOrd == null) {
+                BDialog.error(getManager(), "Discover",
+                        "Impossibile avviare il job di discovery.", (Throwable) null);
+                return null;
+            }
             // setJob dà barra di progresso e cancel standard; il refresh finale
             // arriva da Am8xImportLearn.jobComplete(). Niente polling.
             getImportLearn().setJob(jobOrd);
@@ -214,6 +219,11 @@ public class Am8xImportController extends MgrController {
                 if (r != BDialog.YES) return null;
             }
             BOrd jobOrd = getService().commit(); // Esegue l'azione sulla station (job async)
+            if (jobOrd == null) {
+                BDialog.error(getManager(), "Commit",
+                        "Impossibile avviare il job di commit.", (Throwable) null);
+                return null;
+            }
             // setJob dà barra di progresso e cancel standard; il refresh finale e
             // l'eventuale dialog di errore arrivano da Am8xImportLearn.jobComplete().
             // Niente polling ne' dialog sincrono qui: il job non e' ancora finito.

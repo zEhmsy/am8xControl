@@ -261,6 +261,27 @@ public class Am8xImportLearn extends MgrLearn {
         if (job.getJobState() == BJobState.failed) {
             BDialog.error(getManager(), "Import",
                     "Import fallito: " + job.readLog().getString(), (Throwable) null);
+        } else if (job.getJobState() == BJobState.canceled) {
+            // Il commit annullato NON fa rollback: quanto già scritto resta nel tree
+            // Modbus. Bisogna dirlo esplicitamente, altrimenti un cancel è indistinguibile
+            // da un successo (silenzioso) agli occhi dell'utente.
+            String status = getServiceStatus();
+            BDialog.info(getManager(), "Import annullato",
+                    "L'operazione è stata annullata dall'utente.\n"
+                    + "ATTENZIONE: i device già scritti prima dell'annullamento NON vengono rimossi "
+                    + "(nessun rollback): il tree Modbus risulta PARZIALMENTE aggiornato.\n\n"
+                    + "Dettaglio: " + status);
+        }
+    }
+
+    /** Ultimo stato riportato dal service station-side (lastImportStatus). */
+    private String getServiceStatus() {
+        try {
+            BAm8xImportService service =
+                    (BAm8xImportService) ((BAm8xImportManager) getManager()).getCurrentValue();
+            return service != null ? service.getLastImportStatus() : "";
+        } catch (Exception ignore) {
+            return "";
         }
     }
 
