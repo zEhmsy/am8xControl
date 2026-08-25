@@ -25,5 +25,20 @@ public final class Am8xDisplayNameFormatter {
         return out.isEmpty() ? canonicalName : out;
     }
 
+    /**
+     * Escape per BFormat.make(): raddoppia ogni '%' del testo letterale già
+     * risolto da render(). Dedotto disassemblando BFormat.doParse (nessun
+     * BFormat.escape() esiste nella API): il parser tratta "%%" come un '%'
+     * letterale, qualunque altro '%' apre un'espressione. Senza questo, una
+     * label operatore con un '%' dentro (es. "Umidita 50%") o, peggio, un
+     * testo che assomiglia a una chiamata BFormat (es.
+     * "%parent.displayName%" digitato in una zona) verrebbe interpretato
+     * come espressione invece che restare testo — proprio il bug che questo
+     * design esiste per evitare.
+     */
+    public static String escapeForFormat(String literal) {
+        return literal.replace("%", "%%");
+    }
+
     private static String nz(String s) { return s == null ? "" : s; }
 }

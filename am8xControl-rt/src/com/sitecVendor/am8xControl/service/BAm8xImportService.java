@@ -567,10 +567,10 @@ public final class BAm8xImportService extends BAbstractService {
      * Il display name in Niagara si imposta sul PARENT tramite la Property
      * con cui il figlio è montato (setDisplayName(Property, BFormat, Context)
      * — non esiste un setter diretto sul componente stesso). Il template è
-     * già risolto in una stringa letterale da Am8xDisplayNameFormatter: qui
-     * si raddoppia ogni '%' prima di passarlo a BFormat.make(), perché nel
-     * parser di BFormat "%%" è l'escape del carattere letterale '%' — non
-     * esiste un BFormat.escape() nella API (verificato con javap).
+     * già risolto in una stringa letterale da Am8xDisplayNameFormatter, che
+     * espone anche escapeForFormat() (raddoppio dei '%') come parte della
+     * stessa logica pura e testabile — non esiste un BFormat.escape() nella
+     * API (verificato con javap).
      */
     public void applyDisplayName(BComponent point) {
         Optional<Am8xIdentity> maybe = Am8xIdentitySource.fromComponent(point);
@@ -584,12 +584,9 @@ public final class BAm8xImportService extends BAbstractService {
                 getDisplayNameFormat(), point.getName(), maybe.get());
         String current = point.getDisplayName(null);
         if (!wanted.equals(current)) {
-            parent.setDisplayName(propInParent, BFormat.make(escapeForFormat(wanted)), null);
+            parent.setDisplayName(propInParent,
+                    BFormat.make(Am8xDisplayNameFormatter.escapeForFormat(wanted)), null);
         }
-    }
-
-    private static String escapeForFormat(String literal) {
-        return literal.replace("%", "%%");
     }
 
     /** Riapplica i display name all'albero esistente. L'operatore decide quando. */

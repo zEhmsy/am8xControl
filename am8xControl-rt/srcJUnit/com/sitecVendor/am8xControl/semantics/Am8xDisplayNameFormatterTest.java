@@ -50,4 +50,38 @@ class Am8xDisplayNameFormatterTest {
         assertEquals("1/12",
                 Am8xDisplayNameFormatter.render("%loop%/%zone%", "L01S002", id("x", "12")));
     }
+
+    // ------------------------------------------------------------------
+    // escapeForFormat: la difesa contro un '%' letterale interpretato da
+    // BFormat come inizio di un'espressione. È la parte più a rischio del
+    // design (deriva dal comportamento reale di BFormat.doParse, non da un
+    // metodo di libreria dedicato), quindi va coperta direttamente e non
+    // solo indirettamente tramite render().
+    // ------------------------------------------------------------------
+
+    @Test
+    void escapeForFormatDoublesASinglePercent() {
+        assertEquals("Umidita 50%%",
+                Am8xDisplayNameFormatter.escapeForFormat("Umidita 50%"));
+    }
+
+    @Test
+    void escapeForFormatDoublesEveryPercentWhenThereAreMultiple() {
+        assertEquals("100%% umidita, 50%% soglia",
+                Am8xDisplayNameFormatter.escapeForFormat("100% umidita, 50% soglia"));
+    }
+
+    @Test
+    void escapeForFormatNeutralizesTextThatLooksLikeABFormatExpression() {
+        // Se un operatore digita letteralmente questo in una zona label,
+        // NON deve mai essere interpretato come una chiamata BFormat.
+        assertEquals("%%parent.displayName%%",
+                Am8xDisplayNameFormatter.escapeForFormat("%parent.displayName%"));
+    }
+
+    @Test
+    void escapeForFormatLeavesTextWithoutPercentUnchanged() {
+        assertEquals("Ottico ingresso",
+                Am8xDisplayNameFormatter.escapeForFormat("Ottico ingresso"));
+    }
 }
