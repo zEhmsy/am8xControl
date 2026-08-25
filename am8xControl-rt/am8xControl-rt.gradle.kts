@@ -33,6 +33,7 @@ dependencies {
   api(":modbusCore-rt")
   api(":modbusTcp-rt")
   api(":alarm-rt")
+  api(":tagdictionary-rt")
   api(":kitControl-rt")
 }
 
