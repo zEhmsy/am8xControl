@@ -1,6 +1,8 @@
 package com.sitecVendor.am8xControl.model;
 
 import com.sitecVendor.am8xControl.model.CandidateKey.Kind;
+import com.sitecVendor.am8xControl.parser.Am8xDeviceDescriptor;
+import com.sitecVendor.am8xControl.parser.Am8xSubModuleDescriptor;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -47,6 +49,49 @@ class CandidateKeyParseTest {
             assertEquals(original, reparsed, "round-trip fallito per " + original.toSlotName());
             assertEquals(original.toSlotName(), reparsed.toSlotName());
             assertEquals(original.getKind(), reparsed.getKind());
+        }
+    }
+
+    /**
+     * Round-trip VERO: le CandidateKey qui sono costruite via forDevice()/
+     * forSubModule() a partire da descriptor POJO indipendenti, MAI passando
+     * per parse(). La versione precedente costruiva gli originali chiamando
+     * parse() stesso, quindi testava solo l'idempotenza di parse(), non che
+     * toSlotName()/parse() siano davvero l'una l'inversa dell'altra.
+     * Am8xDeviceDescriptor/Am8xSubModuleDescriptor sono POJO puri (nessun
+     * import baja), quindi non serve alcun runtime Niagara per costruirli.
+     */
+    @Test
+    void roundTripsFromIndependentlyConstructedDescriptors() {
+        // SENSOR: deviceTypeId=0, deviceType non a prefisso "M"
+        Am8xDeviceDescriptor sensor = new Am8xDeviceDescriptor(
+                "AM8200N", "CENTRALE_1", 1, 2, "S001", "Sensore ingresso", 10, "Zona A", 0);
+        CandidateKey sensorKey = CandidateKey.forDevice(sensor);
+        assertEquals(Kind.SENSOR, sensorKey.getKind());
+
+        // MODULE: deviceTypeId=1, senza sub-moduli
+        Am8xDeviceDescriptor module = new Am8xDeviceDescriptor(
+                "AM8200N", "CENTRALE_1", 9, 123, "M720", "Modulo I/O", 20, "Zona B", 1);
+        CandidateKey moduleKey = CandidateKey.forDevice(module);
+        assertEquals(Kind.MODULE, moduleKey.getKind());
+
+        // SUB_MODULE: modulo padre + un suo canale
+        Am8xDeviceDescriptor parent = new Am8xDeviceDescriptor(
+                "AM8200N", "CENTRALE_1", 3, 7, "M720", "Modulo canali", 30, "Zona C", 1);
+        Am8xSubModuleDescriptor sub = new Am8xSubModuleDescriptor("M720CH", "Canale 2", 2, 31, "Zona C.2");
+        CandidateKey subKey = CandidateKey.forSubModule(parent, sub);
+        assertEquals(Kind.SUB_MODULE, subKey.getKind());
+
+        CandidateKey[] originals = { sensorKey, moduleKey, subKey };
+        for (CandidateKey original : originals) {
+            String slotName = original.toSlotName();
+            CandidateKey reparsed = CandidateKey.parse("CENTRALE_1", slotName).get();
+            assertEquals(original, reparsed, "round-trip fallito per " + slotName);
+            assertEquals(original.getKind(), reparsed.getKind(), "kind diverso per " + slotName);
+            assertEquals(original.getLoop(), reparsed.getLoop());
+            assertEquals(original.getPos(), reparsed.getPos());
+            assertEquals(original.getParentModulePos(), reparsed.getParentModulePos());
+            assertEquals(original.getChannel(), reparsed.getChannel());
         }
     }
 

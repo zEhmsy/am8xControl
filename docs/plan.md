@@ -66,16 +66,17 @@ import da prototipo a componente robusto per l'uso in campo su impianti già esi
 | **8. Identity, tag dictionary e hierarchy** | Nuovo `Am8xIdentity`; tag dictionary `am8x` che emette tag impliciti (es. `am8x:loop`, `am8x:zone`) senza bisogno di re-importare gli impianti esistenti; due hierarchy Niagara (panel-first e zone-first) disponibili in palette. | `Am8xIdentity`, `Am8xTagDictionary`, hierarchy palette entries |
 | **9. Slot name sicuri, anti-collisione e display name a template** | `SlotPath.escape` per generare slot name sempre validi; rilevamento delle collisioni scoped per centrale (panel), non più per nome nudo, per evitare falsi positivi su impianti multi-centrale; display name generabili da template con un'azione (`applyDisplayNames`) che li retro-applica sull'albero esistente senza toccare gli slot name. | `SlotPath`, `Am8xModbusAddressing`/`ModbusTreeBuilder` (collision scoping), display-name template + action |
 
-**Test automatici**: aggiunto un source set JUnit dedicato (23 test) che copre parsing, indirizzamento
-Modbus, escaping degli slot name e scoping delle collisioni. Gira nel container Docker con:
+**Test automatici**: aggiunto un source set JUnit dedicato che copre parsing (round-trip di
+`CandidateKey` da descriptor indipendenti), indirizzamento Modbus (`Am8xModbusAddressing`) e scoping
+delle collisioni (`Am8xSlotNames`). Gira nel container Docker con:
 
 ```bash
 ./scripts/docker/nbuild.sh am8xControl :am8xControl-rt:test
 ```
 
-Non copre BFormat/rendering dei display name (richiede il runtime Niagara) né il caricamento di un
-config.bog reale — per questi la verifica finale è demandata al collaudo su VM (vedi sezione dedicata
-più sotto).
+Non copre l'escaping degli slot name (`SlotPath.escape` richiede il runtime Niagara), né
+BFormat/rendering dei display name, né il caricamento di un config.bog reale — per questi la verifica
+finale è demandata al collaudo su VM (vedi sezione dedicata più sotto).
 
 ---
 
