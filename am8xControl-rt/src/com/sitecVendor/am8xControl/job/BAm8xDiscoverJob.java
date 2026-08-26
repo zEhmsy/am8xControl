@@ -55,11 +55,17 @@ public class BAm8xDiscoverJob extends BSimpleJob {
     @Override
     public void run(Context cx) throws Exception {
         BAm8xImportService svc = service();
+        // Dichiarati fuori dal try: il catch di JobCancelException deve poterli
+        // leggere per registrare quanto era stato scritto prima della
+        // cancellazione (report ricostruito parzialmente da clearAllCandidates()
+        // + il ciclo che segue), stesso pattern di BAm8xImportService.runCommit.
+        BAm8xDiscoveryReport report = null;
+        int count = 0;
         try {
             svc.setLastImportStatus("discover: parsing XML…");
 
             List<Am8xDeviceDescriptor> descriptors = svc.loadDescriptors();
-            BAm8xDiscoveryReport report = svc.ensureDiscoveryReport();
+            report = svc.ensureDiscoveryReport();
 
             // Prima riga del run, non prima di lanciarlo: il job dev'essere
             // idempotente anche se rilanciato sullo stesso report.
@@ -72,7 +78,6 @@ public class BAm8xDiscoverJob extends BSimpleJob {
 
             int total = descriptors.size();
             int done = 0;
-            int count = 0;
 
             for (Am8xDeviceDescriptor d : descriptors) {
                 checkCanceled();
@@ -112,11 +117,19 @@ public class BAm8xDiscoverJob extends BSimpleJob {
             LOG.info("[Am8xDiscoverJob] discover OK: " + count + " candidates");
 
         } catch (JobCancelException e) {
-            // Cancellazione, non un fallimento: non toccare lastError/lastImportStatus.
+            // Cancellazione, non un fallimento: non toccare lastError, ma il report
+            // e' gia' stato svuotato da clearAllCandidates() e ripopolato solo in
+            // parte da questo run — lasciare parsedCount/totalCandidates al valore
+            // del run PRECEDENTE descriverebbe un report che non esiste piu' e
+            // l'operatore potrebbe premere Commit su quello stato inconsistente.
+            svc.setParsedCount(count);
+            if (report != null) report.setTotalCandidates(count);
+            svc.setLastImportStatus("discover ANNULLATO — report parziale (" + count
+                    + " candidate), rieseguire");
+            LOG.info("[Am8xDiscoverJob] discover cancelled: " + count + " candidates so far");
             throw e;
         } catch (Exception e) {
             svc.reportJobFailure("import.fail.job", e.getClass().getSimpleName() + ": " + e.getMessage());
-            svc.setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
             svc.setLastImportStatus("discover FAILED");
             LOG.severe("[Am8xDiscoverJob] discover failed: " + e.getMessage());
             throw e;

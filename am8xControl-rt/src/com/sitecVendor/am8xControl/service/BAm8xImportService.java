@@ -29,7 +29,6 @@ import javax.baja.job.BJobState;
 import javax.baja.job.JobCancelException;
 import javax.baja.naming.BOrd;
 import javax.baja.nre.annotations.NiagaraType;
-import javax.baja.nre.annotations.NiagaraAction;
 import javax.baja.nre.annotations.NoSlotomatic;
 import javax.baja.sys.*;
 import javax.baja.util.BFormat;
@@ -178,7 +177,7 @@ public final class BAm8xImportService extends BAbstractService {
      * Transiente per natura: lo stato di fault di un BComponent è runtime, non
      * persistito, quindi dopo un riavvio si riparte puliti (scelta della spec).
      */
-    private boolean inConfigFail = false;
+    private volatile boolean inConfigFail = false;
 
     private void fail(String lexKey, String detail) {
         inConfigFail = true;
@@ -333,8 +332,6 @@ public final class BAm8xImportService extends BAbstractService {
                 LOG.info("[Am8xImportService] addSelected: network slot=" + networkSlot
                         + " type=" + network.getType());
             } catch (Exception e) {
-                setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
-                setLastImportStatus("addSelected FAILED: " + e.getMessage());
                 LOG.severe("[Am8xImportService] addSelected network failed: " + e.getMessage());
                 throw e;
             }
@@ -592,7 +589,11 @@ public final class BAm8xImportService extends BAbstractService {
     /** Riapplica i display name all'albero esistente. L'operatore decide quando. */
     public static final Action applyDisplayNames = newAction(Flags.OPERATOR, null);
     public BOrd applyDisplayNames() { return (BOrd) invoke(applyDisplayNames, null, null); }
-    public BOrd doApplyDisplayNames() { return new BAm8xDisplayNameJob(this).submit(null); }
+    public BOrd doApplyDisplayNames() {
+        clearFail();
+        setLastError("");
+        return new BAm8xDisplayNameJob(this).submit(null);
+    }
 
     /**
      * Corpo di applyDisplayNames, eseguito dentro BAm8xDisplayNameJob.
@@ -670,14 +671,6 @@ public final class BAm8xImportService extends BAbstractService {
             } catch (Exception ignore) {}
         }
         return null;
-    }
-
-    private static void ensureDynamicProperty(BComponent parent, String name, BValue value) {
-        try {
-            if (parent.get(name) == null) {
-                parent.add(name, value, Flags.SUMMARY | Flags.READONLY);
-            }
-        } catch (Exception ignore) {}
     }
 
     private BComponent resolveDrivers() {

@@ -49,7 +49,6 @@ public class BAm8xDisplayNameJob extends BSimpleJob {
             throw e;
         } catch (Exception e) {
             svc.reportJobFailure("import.fail.job", e.getClass().getSimpleName() + ": " + e.getMessage());
-            svc.setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
             svc.setLastImportStatus("applyDisplayNames FAILED");
             LOG.severe("[Am8xDisplayNameJob] applyDisplayNames failed: " + e.getMessage());
             throw e;

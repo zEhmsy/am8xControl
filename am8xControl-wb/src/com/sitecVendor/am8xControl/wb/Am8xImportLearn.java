@@ -3,6 +3,7 @@ package com.sitecVendor.am8xControl.wb;
 import com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryCandidate;
 import com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryReport;
 import com.sitecVendor.am8xControl.discovery.BAm8xPanelFolder;
+import com.sitecVendor.am8xControl.job.BAm8xCommitJob;
 import com.sitecVendor.am8xControl.service.BAm8xImportService;
 import javax.baja.job.BJob;
 import javax.baja.job.BJobState;
@@ -262,15 +263,24 @@ public class Am8xImportLearn extends MgrLearn {
             BDialog.error(getManager(), "Import",
                     "Import fallito: " + job.readLog().getString(), (Throwable) null);
         } else if (job.getJobState() == BJobState.canceled) {
-            // Il commit annullato NON fa rollback: quanto già scritto resta nel tree
-            // Modbus. Bisogna dirlo esplicitamente, altrimenti un cancel è indistinguibile
-            // da un successo (silenzioso) agli occhi dell'utente.
+            // jobComplete scatta per TUTTI e tre i tipi di job di questo learn
+            // (discover, commit, applyDisplayNames): solo il commit scrive nel
+            // tree Modbus senza rollback, quindi solo per quello ha senso
+            // avvisare di un aggiornamento parziale. Per discover/display-name
+            // quel testo sarebbe falso — su un impianto antincendio non e'
+            // accettabile — quindi usano un avviso neutro.
             String status = getServiceStatus();
-            BDialog.info(getManager(), "Import annullato",
-                    "L'operazione è stata annullata dall'utente.\n"
-                    + "ATTENZIONE: i device già scritti prima dell'annullamento NON vengono rimossi "
-                    + "(nessun rollback): il tree Modbus risulta PARZIALMENTE aggiornato.\n\n"
-                    + "Dettaglio: " + status);
+            if (job instanceof BAm8xCommitJob) {
+                BDialog.info(getManager(), "Import annullato",
+                        "L'operazione è stata annullata dall'utente.\n"
+                        + "ATTENZIONE: i device già scritti prima dell'annullamento NON vengono rimossi "
+                        + "(nessun rollback): il tree Modbus risulta PARZIALMENTE aggiornato.\n\n"
+                        + "Dettaglio: " + status);
+            } else {
+                BDialog.info(getManager(), "Operazione annullata",
+                        "L'operazione è stata annullata dall'utente.\n\n"
+                        + "Dettaglio: " + status);
+            }
         }
     }
 
