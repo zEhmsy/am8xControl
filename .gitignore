@@ -11,6 +11,25 @@ am8xControl-wb/build/
 *.ipr
 *.iws
 
+# Chiavi e certificati di firma — MAI committare
+*.p12
+*.pem
+*.jks
+*.keystore
+
+# Script di deploy: contengono host e credenziali delle VM di collaudo
+deploy.sh
+
+# Jar firmati prodotti dal build
+dist/
+
+# Documenti di progetto interni (spec, piani, handoff)
+docs/superpowers/
+am8xControl-handoff-*.md
+
+# Tooling locale
+.claude-flow/
+
 # OS generated files
 .DS_Store
 .DS_Store?

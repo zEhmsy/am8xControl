@@ -11,7 +11,7 @@ plugins {
 
 vendor {
   defaultVendor("sitecVendor")
-  defaultModuleVersion("1.3")
+  defaultModuleVersion("4.0.0")
 }
 
 subprojects {

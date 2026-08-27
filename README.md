@@ -8,7 +8,7 @@
 <h4 align="center">Modulo Niagara 4.15 per l'importazione automatica di centrali antincendio Notifier AM-8200N.</h4>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-3.1.0-blue.svg?cacheSeconds=2592000" />
+  <img alt="Version" src="https://img.shields.io/badge/version-4.0.0-blue.svg?cacheSeconds=2592000" />
   <img alt="Niagara" src="https://img.shields.io/badge/Niagara-4.15-orange.svg" />
   <img alt="Java" src="https://img.shields.io/badge/Java-8-red.svg" />
   <img alt="License" src="https://img.shields.io/badge/License-Apache%202.0-yellow.svg" />
@@ -35,6 +35,20 @@
 Importa la topologia di una o più centrali antincendio **AM-8200N** direttamente dal file XML generato dal tool di configurazione.
 
 Consente all'operatore di rivedere e modificare *offline* i dispositivi scoperti tramite un pannello visivo, generando poi automaticamente l'intero albero **Modbus TCP** (con proxy extension e link pre-configurati) sotto `/Drivers/ModbusTcpNetwork` nella Station.
+
+---
+
+## ✨ Novità della 4.0
+
+* **Discover e Commit sono job Niagara.** Barra di avanzamento con percentuale, annullamento che funziona davvero ed esito finale riportato dalla station. Prima la UI stimava a tempo quando l'operazione fosse finita, e con import lunghi mostrava una tabella vuota.
+* **Gli errori si vedono nell'albero.** Un import fallito manda il servizio in *fault* con la causa leggibile accanto, e lo stato torna normale da solo al primo import riuscito. Prima l'errore viveva in una property da aprire a mano.
+* **Banner di versione.** Il servizio espone `moduleVersion` con versione, commit e data di build: da una segnalazione dal campo si risale subito a cosa è installato.
+* **Tag dictionary `am8x` e hierarchy pronte.** Ogni punto porta centrale, loop, posizione, zona e tipo dispositivo come **tag impliciti** — calcolati, non scritti nel `config.bog`, quindi senza occupare spazio né restare disallineati dopo una rinomina. Nella palette ci sono due hierarchy da trascinare in `HierarchyService` per la vista per centrale e per zona.
+* **Nomi di slot più sicuri.** I nomi vengono ripuliti dai caratteri non validi e, se due dispositivi diversi reclamano lo stesso nome nella stessa centrale, il secondo viene numerato invece di sovrascrivere il primo in silenzio.
+* **Display name a template.** Lo slot resta canonico e stabile (`L01S002`, necessario perché il re-import ritrovi il punto), ma nell'albero si legge anche l'etichetta del dispositivo. Configurabile con `displayNameFormat`, applicabile anche a un albero già importato.
+* **40 test JUnit** sulla logica pura: indirizzamento Modbus, round-trip dei nomi di slot, formattazione dei display name, risoluzione dei path.
+
+> **Aggiornamento da 3.x** — Il servizio è passato da `BComponent` a `BAbstractService`, cambio necessario per poter segnalare il fault. La migrazione è stata verificata caricando un `config.bog` scritto dalla 3.1.1: configurazione, albero Modbus e discovery report vengono conservati, e i nuovi slot compaiono con i valori di default. Anche il ritorno alla 3.1.1 funziona: gli slot che il codice vecchio non conosce vengono ignorati. Resta buona pratica **fare una copia del `config.bog` prima di aggiornare**.
 
 ---
 
@@ -81,12 +95,16 @@ Per facilitare la lettura, i dettagli tecnici approfonditi per sviluppatori sono
 ```text
 am8xControl/
 ├── am8xControl-rt/          ← codice che gira nella station (runtime)
-│   └── src/.../
-│       ├── service/           BAm8xImportService, BAm8xWizardInput
-│       ├── discovery/         BAm8xDiscoveryReport, BAm8xPanelFolder, BAm8xDiscoveryCandidate
-│       ├── parser/            Am8xXmlParser, Am8xDeviceDescriptor, Am8xSubModuleDescriptor
-│       ├── modbus/            ModbusTreeBuilder, ModbusPointFactory, Am8xModbusAddressing, BAm8xStatePoint
-│       └── model/             CandidateKey
+│   ├── src/.../
+│   │   ├── service/           BAm8xImportService, BAm8xWizardInput
+│   │   ├── discovery/         BAm8xDiscoveryReport, BAm8xPanelFolder, BAm8xDiscoveryCandidate
+│   │   ├── job/               BAm8xDiscoverJob, BAm8xCommitJob, BAm8xDisplayNameJob
+│   │   ├── parser/            Am8xXmlParser, Am8xDeviceDescriptor, Am8xSubModuleDescriptor
+│   │   ├── modbus/            ModbusTreeBuilder, ModbusPointFactory, Am8xModbusAddressing, BAm8xStatePoint
+│   │   ├── semantics/         Am8xIdentity, Am8xSlotNames, Am8xDisplayNameFormatter, Am8xFilePaths
+│   │   ├── tags/              BAm8xTagDictionary
+│   │   └── model/             CandidateKey
+│   └── srcJUnit/.../          test della logica pura (nessun runtime Niagara)
 └── am8xControl-wb/          ← codice che gira nel Workbench (UI)
     └── src/.../wb/
         ├── BAm8xImportManager
@@ -105,23 +123,27 @@ am8xControl/
         ↓ BAm8xImportManager si monta automaticamente in learn mode
 [WB] Pulsante "Discover"
         ↓ Popup: File XML (PC… | Station…), Tipo Device (ModbusTcp|ModbusGateway), IP Modbus, Porta, Device Address Start
-        ↓ service.discover() invocato via RPC
-[Station] BAm8xImportService.doDiscover()
+        ↓ service.discover() invocato via RPC → restituisce l'ORD di un BAm8xDiscoverJob
+[Station] BAm8xDiscoverJob (progress, cancel cooperativo, esito finale)
         ↓ Legge XML → Am8xXmlParser → lista Am8xDeviceDescriptor
         ↓ Popola discovery/ con BAm8xPanelFolder → BAm8xDiscoveryCandidate
+[WB] La UI si aggancia al job: barra di avanzamento e Cancel, nessun polling
 [WB] Am8xImportLearn mostra albero: centrale (folder) → device (leaf)
         ↓ Utente seleziona device → "Edit Device" per modificare Label/Zone/Indirizzi
         ↓ Utente usa "Cancel" per deselezionare tutta una centrale
 [WB] Pulsante "Commit"
         ↓ Conferma se ci sono già-importati
-        ↓ service.commit() → doAddSelected()
-[Station] doAddSelected()
+        ↓ service.commit() → BAm8xCommitJob (progress, cancel, esito)
+[Station] runCommit()
         ↓ ensureNetwork IP-aware: riusa la rete sullo stesso IP, o ne crea una nuova
         ↓   ModbusTcp     → BModbusTcpNetwork + BModbusTcpDevice (IP/porta per device)
         ↓   ModbusGateway → BModbusTcpGateway + BModbusTcpGatewayDevice (IP/porta sulla rete)
         ↓   IP uguale ma tipo diverso → IllegalStateException (Topology Conflict)
         ↓ Crea device CENTRALE con punti di controllo generali (Buzzer, Alarm, Zone…)
         ↓ Per ogni candidate selected → crea BAm8xStatePoint + BNumericPoint + Link
+        ↓   nomi di slot escapati, collisioni nella stessa centrale numerate
+        ↓   display name applicato da displayNameFormat
+        ↓ In caso di errore → il servizio va in fault con la causa leggibile
 ```
 
 </details>
@@ -151,11 +173,16 @@ Un point speciale che estende `BEnumPoint` con un enum personalizzato (Normale, 
 * **Niagara 4.15** — `baja`, `bajaui`, `workbench`, `workbench-mgr`
 * **modbusTcp** — `BModbusTcpNetwork`, `BModbusTcpDevice`, `BModbusTcpGateway`, `BModbusTcpGatewayDevice`
 * **modbusCore** — `BModbusClientDevice`, `BModbusClientNumericProxyExt`, `BModbusClientEnumBitsProxyExt`, `BModbusClientPresetRegisters`, `BFlexAddress`, `BModbusClientPointFolder`
+* **alarm** — alarm class e alarm extension generate per centrale
+* **tagdictionary** — `BTagDictionary`, `SmartTagDictionary` per i tag impliciti `am8x`
+* **hierarchy** — le hierarchy per centrale e per zona spedite nella palette
 
 ### Limitazioni Note Attuali
 1. **Upload non testato in produzione** — il meccanismo RPC Base64 per il caricamento da PC è stato implementato ma non ancora validato end-to-end sul campo.
 2. **`clearImported` non implementato** — l'azione di rimozione automatica dal DB Niagara dei point importati è un placeholder per sviluppi futuri.
-3. **`alreadyImported` non sincronizzato** — il flag viene impostato, ma non ancora ri-sincronizzato con l'albero Modbus reale a ogni apertura del Manager.
+3. **`alreadyImported` è memorizzato, non derivato** — il flag viene scritto al commit, ma non è ri-sincronizzato con l'albero Modbus reale: se un punto viene cancellato a mano dalla Station, il candidato continua a dichiararsi importato finché non si rilancia un Discover.
+4. **Il pannello Database del Manager non è usato** — la vista di importazione lavora sul solo pannello Discover. Il Database non mostra l'albero Modbus generato.
+5. **Migrazione verificata su un impianto di prova** — il test di aggiornamento da 3.1.1 è stato fatto su una station con due centrali e 24 dispositivi, senza personalizzazioni manuali. Su impianti grandi o con modifiche fatte a mano all'albero, conviene comunque partire da una copia del `config.bog`.
 
 </details>
 
