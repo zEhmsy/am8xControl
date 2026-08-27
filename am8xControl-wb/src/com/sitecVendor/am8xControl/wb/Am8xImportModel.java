@@ -1,22 +1,27 @@
 package com.sitecVendor.am8xControl.wb;
 
 import com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryCandidate;
-import com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryReport;
-import com.sitecVendor.am8xControl.service.BAm8xImportService;
 import javax.baja.sys.BBoolean;
 import javax.baja.sys.BComponent;
 import javax.baja.sys.BInteger;
 import javax.baja.sys.BString;
 import javax.baja.sys.BValue;
 import javax.baja.sys.Context;
+import javax.baja.ui.BNullWidget;
+import javax.baja.ui.BWidget;
 import javax.baja.workbench.mgr.MgrColumn;
 import javax.baja.workbench.mgr.MgrEditRow;
 import javax.baja.workbench.mgr.MgrModel;
 
 /**
- * Database pane: mostra tutti i BAm8xDiscoveryCandidate come tabella piatta editabile.
- * MgrModel scansiona il component tree del service (via accept + getSubscribeDepth),
- * quindi le modifiche scrivono direttamente sui BComponent in station.
+ * Model del pannello Database — che in questa vista NON viene disegnato
+ * (vedi makePane): l'import lavora solo sul pannello Discover.
+ *
+ * Il model resta comunque completo perché il framework lo pretende: la BMgrTable
+ * è agganciata da BAbstractManager.init() e le colonne sono quelle su cui il
+ * manager si sincronizza. Scansiona il component tree del service via accept +
+ * getSubscribeDepth, quindi le modifiche scrivono direttamente sui BComponent
+ * in station.
  */
 public class Am8xImportModel extends MgrModel {
 
@@ -173,30 +178,18 @@ public class Am8xImportModel extends MgrModel {
     }
 
     /**
-     * Popola il DB pane scansionando dalla BAm8xDiscoveryReport (depth 2).
-     * Più affidabile che reload() perché imposta esplicitamente il container.
+     * Il pannello Database non viene disegnato: questa vista è solo Discover.
+     *
+     * super.makePane() va invocato lo stesso perché è lì che nasce la BMgrTable
+     * (this.table = makeTable(), più attach e setTransferWidget sul manager), e
+     * BAbstractManager.init() fa linkTo(getModel().getTable(), selectionModified,
+     * handleDbSelection): con table a null andrebbe in NPE. Si scarta solo il
+     * BTitlePane che avvolge la tabella, così spariscono griglia e titolo
+     * "Database" senza toccare il resto del cablaggio del framework.
      */
-    public void updateDiscoveryData() {
-        try {
-            BAm8xImportService svc =
-                    (BAm8xImportService) getManager().getCurrentValue();
-            if (svc == null) { getTable().reload(); return; }
-            javax.baja.sys.BValue rv = svc.get("discovery");
-            if (rv instanceof BAm8xDiscoveryReport) {
-                // Carica direttamente dalla report: panelFolder(1) → candidate(2)
-                javax.baja.workbench.component.table.BComponentTable tbl =
-                        (javax.baja.workbench.component.table.BComponentTable) getTable();
-                tbl.load(
-                    (BAm8xDiscoveryReport) rv,
-                    new Class[]{ BAm8xDiscoveryCandidate.class },
-                    2,
-                    null);
-            } else {
-                getTable().reload();
-            }
-        } catch (Exception e) {
-            java.util.logging.Logger.getLogger(Am8xImportModel.class.getName())
-                .info("[Am8xImportModel] updateDiscoveryData failed: " + e);
-        }
+    @Override
+    public BWidget makePane() {
+        super.makePane();
+        return new BNullWidget();
     }
 }

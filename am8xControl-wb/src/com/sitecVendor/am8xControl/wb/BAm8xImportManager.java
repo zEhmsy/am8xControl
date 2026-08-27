@@ -8,13 +8,13 @@ import javax.baja.sys.Context;
 import javax.baja.sys.Sys;
 import javax.baja.sys.Type;
 import javax.baja.ui.BWidget;
+import javax.baja.ui.pane.BEdgePane;
 import javax.baja.ui.pane.BSplitPane;
 import javax.baja.workbench.mgr.BAbstractManager;
 import javax.baja.workbench.mgr.MgrController;
 import javax.baja.workbench.mgr.MgrLearn;
 import javax.baja.workbench.mgr.MgrModel;
 import javax.swing.SwingUtilities;
-import java.lang.reflect.Field;
 import java.util.logging.Logger;
 
 @NiagaraType(
@@ -53,8 +53,16 @@ public class BAm8xImportManager extends BAbstractManager {
         });
     }
 
+    /**
+     * Il guard va PRIMA di super.updateContent(), non solo dentro
+     * forceDiscoverOnlyLayout(): il relayout() dello splitter rientra qui, e
+     * super.updateContent() rimette il divisore a 50 (tableLearnSplit) a ogni
+     * passaggio. Guardando solo il nostro metodo, il giro rientrante annullava
+     * la correzione appena applicata e il pannello tornava a metà altezza.
+     */
     @Override
     public void updateContent() {
+        if (forcingDiscoverOnlyLayout) return;
         super.updateContent();
         forceDiscoverOnlyLayout();
     }
@@ -74,6 +82,21 @@ public class BAm8xImportManager extends BAbstractManager {
         forceDiscoverOnlyLayout();
     }
 
+    /**
+     * Tiene la vista sul solo pannello Discover.
+     *
+     * Il pannello Database non esiste come widget — Am8xImportModel.makePane()
+     * restituisce un BNullWidget — ma BAbstractManager.updateContent() lo mette
+     * comunque come widget2 di mainSplitter e a OGNI passaggio rimette il
+     * divisore a 50: senza questa correzione metà vista resterebbe vuota e
+     * ridimensionabile.
+     *
+     * Lo splitter si ottiene risalendo dal pannello Learn con getParentWidget()
+     * (public final su BWidget). La versione precedente leggeva i campi
+     * package-private di BAbstractManager per riflessione: falliva in silenzio,
+     * quasi certamente perché setAccessible(true) non è concesso ai moduli sotto
+     * il SecurityManager del Workbench, e il pannello Database restava visibile.
+     */
     void forceDiscoverOnlyLayout() {
         if (forcingDiscoverOnlyLayout) return;
         forcingDiscoverOnlyLayout = true;
@@ -83,55 +106,53 @@ public class BAm8xImportManager extends BAbstractManager {
                 getController().learnMode.setEnabled(false);
             } catch (Exception ignore) {}
 
-            BWidget tablePane = widgetField("tablePane");
-            if (tablePane != null) tablePane.setVisible(false);
-
-            BWidget learnPane = widgetField("learnPane");
+            BWidget learnPane = learnPane();
             if (learnPane != null) learnPane.setVisible(true);
 
-            BSplitPane mainSplitter = splitField("mainSplitter");
-            if (mainSplitter != null) {
-                mainSplitter.setDividerPosition(100.0);
-                mainSplitter.setDividerWidth(0.0);
-                mainSplitter.setMoveableDivider(false);
-                mainSplitter.relayout();
-            }
-
-            BSplitPane upperPaneSplitter = splitField("upperPaneSplitter");
-            if (upperPaneSplitter != null) {
-                upperPaneSplitter.setDividerPosition(100.0);
-                upperPaneSplitter.setDividerWidth(0.0);
-                upperPaneSplitter.setMoveableDivider(false);
-                upperPaneSplitter.relayout();
+            BSplitPane splitter = mainSplitter();
+            if (splitter != null) {
+                splitter.setDividerPosition(100.0);
+                splitter.setDividerWidth(0.0);
+                splitter.setMoveableDivider(false);
+                splitter.relayout();
+            } else {
+                LOG.info("[Am8xImportManager] mainSplitter non trovato: il pannello "
+                        + "Discover resterà a metà altezza");
             }
 
             if (learnPane != null) learnPane.relayout();
         } catch (Exception e) {
-            LOG.fine("[Am8xImportManager] forceDiscoverOnlyLayout failed: " + e.getMessage());
+            LOG.info("[Am8xImportManager] forceDiscoverOnlyLayout failed: " + e);
         } finally {
             forcingDiscoverOnlyLayout = false;
         }
     }
 
-    private BWidget widgetField(String fieldName) {
-        Object value = managerField(fieldName);
-        return value instanceof BWidget ? (BWidget) value : null;
+    /** Il pannello Learn, catturato da Am8xImportLearn.makePane(). */
+    private BWidget learnPane() {
+        MgrLearn learn = getLearn();
+        return learn instanceof Am8xImportLearn ? ((Am8xImportLearn) learn).pane() : null;
     }
 
-    private BSplitPane splitField(String fieldName) {
-        Object value = managerField(fieldName);
-        return value instanceof BSplitPane ? (BSplitPane) value : null;
-    }
-
-    private Object managerField(String fieldName) {
-        try {
-            Field f = BAbstractManager.class.getDeclaredField(fieldName);
-            f.setAccessible(true);
-            return f.get(this);
-        } catch (Exception e) {
-            LOG.fine("[Am8xImportManager] cannot read " + fieldName + ": " + e.getMessage());
-            return null;
+    /**
+     * Lo splitter verticale che BAbstractManager.updateContent() mette al centro
+     * del BEdgePane della vista, con il Learn come widget1.
+     *
+     * Due strade, entrambe API pubbliche. Dall'alto (getContent().getCenter())
+     * è quella deterministica, ma vale solo dopo init(): setContent(content)
+     * viene invocato DOPO updateContent(), quindi al primo giro getContent()
+     * restituisce ancora il BNullWidget iniziale. Lì si risale dal pannello
+     * Learn, che a quel punto è già widget1 dello splitter.
+     */
+    private BSplitPane mainSplitter() {
+        BWidget content = getContent();
+        if (content instanceof BEdgePane) {
+            BWidget center = ((BEdgePane) content).getCenter();
+            if (center instanceof BSplitPane) return (BSplitPane) center;
         }
+        BWidget learnPane = learnPane();
+        BWidget parent = learnPane == null ? null : learnPane.getParentWidget();
+        return parent instanceof BSplitPane ? (BSplitPane) parent : null;
     }
 
     @Override

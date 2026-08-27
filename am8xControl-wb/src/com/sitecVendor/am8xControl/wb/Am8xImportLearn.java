@@ -13,14 +13,34 @@ import javax.baja.sys.BString;
 import javax.baja.sys.BValue;
 import javax.baja.sys.Context;
 import javax.baja.ui.BDialog;
+import javax.baja.ui.BWidget;
 import javax.baja.workbench.mgr.MgrColumn;
 import javax.baja.workbench.mgr.MgrEditRow;
 import javax.baja.workbench.mgr.MgrLearn;
 
 public class Am8xImportLearn extends MgrLearn {
 
+    /**
+     * Il pannello costruito da MgrLearn.makePane(), tenuto da parte perché
+     * BAbstractManager lo salva in un campo package-private (learnPane) che da
+     * qui non è raggiungibile. Serve al manager per arrivare allo splitter
+     * tramite getParentWidget(), senza riflessione.
+     */
+    private BWidget pane;
+
     public Am8xImportLearn(BAm8xImportManager manager) {
         super(manager);
+    }
+
+    @Override
+    public BWidget makePane() {
+        pane = super.makePane();
+        return pane;
+    }
+
+    /** Il pannello Learn, oppure null se makePane() non è ancora stato chiamato. */
+    BWidget pane() {
+        return pane;
     }
 
     @Override
