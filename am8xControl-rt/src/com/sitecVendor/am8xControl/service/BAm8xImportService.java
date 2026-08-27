@@ -8,6 +8,7 @@ import com.sitecVendor.am8xControl.job.BAm8xDiscoverJob;
 import com.sitecVendor.am8xControl.job.BAm8xDisplayNameJob;
 import com.sitecVendor.am8xControl.model.CandidateKey;
 import com.sitecVendor.am8xControl.semantics.Am8xDisplayNameFormatter;
+import com.sitecVendor.am8xControl.semantics.Am8xFilePaths;
 import com.sitecVendor.am8xControl.semantics.Am8xIdentity;
 import com.sitecVendor.am8xControl.semantics.Am8xIdentitySource;
 import com.sitecVendor.am8xControl.semantics.Am8xSlotNames;
@@ -1036,18 +1037,12 @@ public final class BAm8xImportService extends BAbstractService {
      * Espande gli ORD supportati verso File station-side usando solo API Niagara.
      * Il caso primario e supportato dal wizard e': file:^shared/nome.xml.
      */
+    /** Vedi {@link Am8xFilePaths#candidatesFor(File, String)} per la semantica di '^'. */
     private static File[] buildFsFileCandidates(String ordStr) {
-        java.util.List<File> paths = new java.util.ArrayList<>();
+        java.util.List<File> paths = Am8xFilePaths.candidatesFor(Sys.getStationHome(), ordStr);
         String clean = stripHostOrdPrefix(ordStr).replace('\\', '/');
-        if (clean.startsWith(SHARED_ORD_PREFIX)) {
-            addSharedFileCandidate(paths, clean.substring(SHARED_ORD_PREFIX.length()));
-        } else if (clean.startsWith(NIAGARA_USER_HOME_ORD_PREFIX)) {
+        if (clean.startsWith(NIAGARA_USER_HOME_ORD_PREFIX)) {
             addNiagaraUserHomeFileCandidate(paths, clean.substring(NIAGARA_USER_HOME_ORD_PREFIX.length()));
-        } else if (clean.startsWith(STATION_ORD_PREFIX)) {
-            String rel = clean.substring(STATION_ORD_PREFIX.length());
-            if (isSimpleFileName(rel)) {
-                addSharedFileCandidate(paths, rel);
-            }
         }
         return paths.toArray(new File[0]);
     }
@@ -1087,8 +1082,18 @@ public final class BAm8xImportService extends BAbstractService {
         out.add(new File(Sys.getNiagaraUserHome(), safeRel.replace('/', File.separatorChar)));
     }
 
+    /**
+     * Directory dove doUploadXml scrive i file caricati dal Workbench.
+     *
+     * E' Sys.getStationHome() e basta: su Niagara 4.15 quella chiamata restituisce
+     * gia' la file space root della station, cioe' la cartella 'shared'. La versione
+     * precedente ci appendeva un altro "shared" e creava una <station>/shared/shared/
+     * annidata, dove i file finivano senza che l'ORD generato li ritrovasse.
+     * I file gia' finiti li' restano leggibili: vedi il candidato legacy in
+     * {@link #fsCandidatesFor(File, String)}.
+     */
     private static File getStationSharedDir() {
-        return new File(Sys.getStationHome(), SHARED_DIR_NAME);
+        return Sys.getStationHome();
     }
 
     private static String stripHostOrdPrefix(String ordStr) {
@@ -1131,8 +1136,14 @@ public final class BAm8xImportService extends BAbstractService {
                 && name.indexOf(':') < 0;
     }
 
+    /**
+     * ORD di un file nella shared dir della station. Niente segmento "shared/":
+     * '^' e' gia' la shared root, e aggiungerlo produceva un ORD che puntava a
+     * <station>/shared/shared/<file>. Gli ORD vecchi con "shared/" restano
+     * risolvibili: vedi {@link #fsCandidatesFor(File, String)}.
+     */
     private static String sharedFileOrd(String fileName) {
-        return SHARED_ORD_PREFIX + fileName;
+        return STATION_ORD_PREFIX + fileName;
     }
 
     private static void addOrdCandidate(java.util.List<String> out, String ord) {
