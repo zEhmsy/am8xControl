@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bajaObjectGraph version="4.0" reversibleEncodingKeySource="none" FIPSEnabled="false" reversibleEncodingValidator="[null.1]=" >
-<p m="b=baja" t="b:Folder">
+<!-- UnrestrictedFolder, NON Folder: BTagDictionary.isParentLegal() accetta solo un
+     TagDictionaryService e BHierarchy.isParentLegal() solo un HierarchyService, quindi
+     dentro un b:Folder normale il decoder della palette rifiuta l'add e l'INTERA palette
+     va in errore ("Illegal parent baja:Folder for child ..."). UnrestrictedFolder salta
+     il controllo di legalita' del parent ed e' quello che usano le palette Tridium che
+     spediscono tag dictionary e hierarchy (cfr. brick-rt, analytics-lib-ux, micros-wb). -->
+<p m="b=baja" t="b:UnrestrictedFolder">
     <p m="am8x2=am8xControl" t="am8x2:Am8xImportService" n="Am8xImportService" />
     <!-- Trascinare in Services/TagDictionaryService per abilitare i tag am8x:*.
          I tag sono calcolati, non scritti: funzionano anche sugli alberi
