@@ -163,7 +163,7 @@ public class Am8xImportController extends MgrController {
                 c.setZoneLabel(txtZone.getText());
                 try { c.setStateAddress(Integer.parseInt(txtState.getText())); } catch (Exception ignore) {}
                 try { c.setAnalogAddress(Integer.parseInt(txtAnalog.getText())); } catch (Exception ignore) {}
-                
+
                 // Flush changes to station component
                 try {
                     niagara.sys.BComponent stC = (niagara.sys.BComponent) c.getNavOrd().resolve(niagara.sys.Sys.getStation(), null).get();
@@ -174,7 +174,7 @@ public class Am8xImportController extends MgrController {
                 } catch (Exception ex) {
                     getManager().saveValue(); // Fallback to standard save if resolve fails
                 }
-                
+
                 // Refresh leggero: ripopola senza resettare roots per preservare la selezione
                 try {
                     Am8xImportLearn learn = (Am8xImportLearn) getManager().getLearn();
