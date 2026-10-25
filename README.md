@@ -52,6 +52,23 @@ Consente all'operatore di rivedere e modificare *offline* i dispositivi scoperti
 
 ---
 
+## Niagara 4 e Niagara 5
+
+La versione **4.0.0** ha sorgenti per entrambi i rami:
+
+| Ambiente | Sorgenti | Moduli da installare |
+| --- | --- | --- |
+| Niagara 4.15 | `am8xControl-rt/` e `am8xControl-wb/` | `am8xControl-rt.jar` e `am8xControl-wb.jar` |
+| Niagara 5.0 | [`niagara5/`](niagara5/README.md) | `am8xControl.jar` |
+
+Il porting N5 comprende i job Discover/Commit, la gestione dei nomi, i tag impliciti e le hierarchy della 4.0. È stato compilato e firmato; resta da collaudare su una station Niagara 5 reale. Il progetto `sensorRoomN5` è distinto da am8xControl.
+
+La distribuzione nel [catalogo moduli](https://license.sitec.space) usa bundle N4/N5 per gli utenti autenticati, senza richiesta di attivazione del modulo. Ogni pacchetto contiene i JAR firmati, il certificato pubblico e `LICENSE.txt` Apache 2.0; non è necessaria una `.license` associata all’Host-ID. Restano necessarie le dipendenze e le abilitazioni Niagara/Modbus della propria installazione.
+
+- [Guida installazione e configurazione](KEYVAULT_DOCS.md)
+- [Brochure commerciale](docs/panoramica.pdf): due pagine con il solo marchio am8xControl, senza riferimenti al distributore anche nei metadati.
+- [Note del porting N5](niagara5/PORTING-2026-10-25.md)
+
 ## 🚀 Installazione
 
 Se stai utilizzando una release ufficiale con i moduli già compilati e firmati, scarica il pacchetto `.zip` dall'ultima **[Release Ufficiale](https://github.com/zEhmsy/am8xControl/releases/latest)**. L'installazione richiede pochi passaggi:

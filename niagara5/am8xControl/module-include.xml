@@ -1,0 +1,28 @@
+<types>
+  <type class="com.sitecVendor.am8xControl.service.BAm8xImportService"
+        name="Am8xImportService"/>
+  <type class="com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryReport"
+        name="Am8xDiscoveryReport"/>
+  <type class="com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryCandidate"
+        name="Am8xDiscoveryCandidate"/>
+  <type class="com.sitecVendor.am8xControl.discovery.BAm8xPanelFolder"
+        name="Am8xPanelFolder"/>
+  <type class="com.sitecVendor.am8xControl.service.BAm8xWizardInput"
+        name="Am8xWizardInput"/>
+  <type class="com.sitecVendor.am8xControl.modbus.BAm8xStatePoint"
+        name="Am8xStatePoint"/>
+  <type class="com.sitecVendor.am8xControl.modbus.BAm8xModuleStatePoint"
+        name="Am8xModuleStatePoint"/>
+  <type class="com.sitecVendor.am8xControl.px.BStatusEnumToImage"
+        name="StatusEnumToImage"/>
+  <type class="com.sitecVendor.am8xControl.wb.BAm8xImportManager"
+        name="Am8xImportManager">
+    <agent>
+      <on type="am8xControl:Am8xImportService"/>
+    </agent>
+  </type>
+  <type class="com.sitecVendor.am8xControl.job.BAm8xDiscoverJob" name="Am8xDiscoverJob" />
+  <type class="com.sitecVendor.am8xControl.job.BAm8xCommitJob" name="Am8xCommitJob" />
+  <type class="com.sitecVendor.am8xControl.job.BAm8xDisplayNameJob" name="Am8xDisplayNameJob" />
+  <type class="com.sitecVendor.am8xControl.tags.BAm8xTagDictionary" name="Am8xTagDictionary" />
+</types>

@@ -1,0 +1,1180 @@
+package com.sitecVendor.am8xControl.service;
+
+import com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryCandidate;
+import com.sitecVendor.am8xControl.discovery.BAm8xDiscoveryReport;
+import com.sitecVendor.am8xControl.discovery.BAm8xPanelFolder;
+import com.sitecVendor.am8xControl.job.BAm8xCommitJob;
+import com.sitecVendor.am8xControl.job.BAm8xDiscoverJob;
+import com.sitecVendor.am8xControl.job.BAm8xDisplayNameJob;
+import com.sitecVendor.am8xControl.model.CandidateKey;
+import com.sitecVendor.am8xControl.semantics.Am8xDisplayNameFormatter;
+import com.sitecVendor.am8xControl.semantics.Am8xFilePaths;
+import com.sitecVendor.am8xControl.semantics.Am8xIdentity;
+import com.sitecVendor.am8xControl.semantics.Am8xIdentitySource;
+import com.sitecVendor.am8xControl.semantics.Am8xSlotNames;
+import com.sitecVendor.am8xControl.modbus.Am8xModbusAddressing;
+import com.sitecVendor.am8xControl.modbus.Am8xAlarmAutomation;
+import com.sitecVendor.am8xControl.modbus.ModbusPointFactory;
+import com.sitecVendor.am8xControl.modbus.ModbusTreeBuilder;
+import com.sitecVendor.am8xControl.modbus.BAm8xStatePoint;
+import com.sitecVendor.am8xControl.modbus.BAm8xModuleStatePoint;
+import com.sitecVendor.am8xControl.parser.Am8xDeviceDescriptor;
+import com.sitecVendor.am8xControl.parser.Am8xSubModuleDescriptor;
+import com.sitecVendor.am8xControl.parser.Am8xXmlParser;
+import com.tridium.modbusCore.client.BModbusClientDevice;
+import com.tridium.modbusTcp.BModbusTcpNetwork;
+
+import niagara.file.BIFile;
+import niagara.job.BJob;
+import niagara.job.BJobState;
+import niagara.job.JobCancelException;
+import niagara.naming.BOrd;
+import niagara.nre.annotations.NiagaraType;
+import niagara.nre.annotations.NoSlotomatic;
+import niagara.sys.*;
+import niagara.util.BFormat;
+import niagara.util.Lexicon;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.Properties;
+import java.util.logging.Logger;
+
+/**
+ * Servizio Niagara che importa la topologia AM-8200N da XML
+ * e crea i point Modbus corrispondenti sotto un BModbusTcpDevice.
+ *
+ * Workflow:
+ *   1. Imposta xmlFilePath, modbusIpAddress, modbusTcpPort, modbusDeviceSlot.
+ *   2. Invoca discover() → popola il sotto-componente "discovery" con i candidate.
+ *   3. Deseleziona eventuali device da escludere (o usa selectNone + selezione manuale).
+ *   4. Invoca addSelected() → crea folder loop + point Modbus sotto /Drivers/...
+ */
+@NiagaraType
+@NoSlotomatic
+public final class BAm8xImportService extends BAbstractService {
+
+    private static final Logger LOG = Logger.getLogger(BAm8xImportService.class.getName());
+    private static final String DEFAULT_RESOURCE = "/resources/test.xml";
+    private static final String DISCOVERY_SLOT   = "discovery";
+    private static final String SHARED_ORD_PREFIX = "file:^";
+    private static final String STATION_ORD_PREFIX = "file:^";
+    private static final String NIAGARA_USER_HOME_ORD_PREFIX = "file:!";
+    private static final String LOCAL_ORD_PREFIX = "local:|";
+    private static final String STATION_HOST_ORD_PREFIX = "station:|";
+    private static final String SHARED_DIR_NAME = "shared";
+
+    ////////////////////////////////////////////////////////////////
+    // Properties — configurazione (editabili)
+    ////////////////////////////////////////////////////////////////
+
+    /**
+     * Percorso file XML come BOrd: nel Property Sheet di WB il campo
+     * mostra un pulsante "Edit…" che apre l'ORD chooser con accesso
+     * al file system virtuale della station. Esempio: file:^shared/test.xml
+     */
+    public static final Property xmlFilePath =
+            newProperty(Flags.SUMMARY, BOrd.DEFAULT, null);
+    public BOrd getXmlFilePath() { return (BOrd) get(xmlFilePath); }
+    public void setXmlFilePath(BOrd v) { set(xmlFilePath, v, null); }
+
+    public static final Property modbusNetworkSlot =
+            newProperty(Flags.SUMMARY, "ModbusTcpNetwork", null);
+    public String getModbusNetworkSlot() { return getString(modbusNetworkSlot); }
+    public void setModbusNetworkSlot(String v) { setString(modbusNetworkSlot, v, null); }
+
+    public static final Property modbusIpAddress =
+            newProperty(Flags.SUMMARY, "", null);
+    public String getModbusIpAddress() { return getString(modbusIpAddress); }
+    public void setModbusIpAddress(String v) { setString(modbusIpAddress, v, null); }
+
+    public static final Property modbusTcpPort =
+            newProperty(Flags.SUMMARY, 502, null);
+    public int getModbusTcpPort() { return getInt(modbusTcpPort); }
+    public void setModbusTcpPort(int v) { setInt(modbusTcpPort, v, null); }
+
+    public static final Property modbusDeviceSlot =
+            newProperty(Flags.SUMMARY, "AM8200N_Panel", null);
+    public String getModbusDeviceSlot() { return getString(modbusDeviceSlot); }
+    public void setModbusDeviceSlot(String v) { setString(modbusDeviceSlot, v, null); }
+
+    public static final Property deviceAddressStart =
+            newProperty(Flags.SUMMARY, 101, null);
+    public int getDeviceAddressStart() { return getInt(deviceAddressStart); }
+    public void setDeviceAddressStart(int v) { setInt(deviceAddressStart, v, null); }
+
+    /**
+     * Tipo di device parent da instanziare: ModbusTcp (default) o ModbusGateway.
+     * Impostato dal popup Discover (BAm8xWizardInput) e consumato in doAddSelected.
+     */
+    public static final Property deviceType = newProperty(
+            Flags.SUMMARY,
+            BDynamicEnum.make(0, BAm8xWizardInput.DEVICE_TYPE_RANGE),
+            BFacets.makeEnum(BAm8xWizardInput.DEVICE_TYPE_RANGE));
+    public BDynamicEnum getDeviceType() { return (BDynamicEnum) get(deviceType); }
+    public void setDeviceType(BDynamicEnum v) { set(deviceType, v, null); }
+    public boolean isGatewayMode() { return getDeviceType().getOrdinal() == 1; }
+
+    /** Template del display name. Lo slot name resta canonico: questo è additivo. */
+    public static final Property displayNameFormat =
+            newProperty(Flags.SUMMARY, "%name% — %deviceLabel%", null);
+    public String getDisplayNameFormat() { return getString(displayNameFormat); }
+    public void setDisplayNameFormat(String v) { setString(displayNameFormat, v, null); }
+
+    ////////////////////////////////////////////////////////////////
+    // Properties — stato runtime (readonly)
+    ////////////////////////////////////////////////////////////////
+
+    public static final Property lastImportStatus =
+            newProperty(Flags.SUMMARY | Flags.READONLY, "idle", null);
+    public String getLastImportStatus() { return getString(lastImportStatus); }
+    public void setLastImportStatus(String v) { setString(lastImportStatus, v, null); }
+
+    public static final Property lastError =
+            newProperty(Flags.SUMMARY | Flags.READONLY, "", null);
+    public String getLastError() { return getString(lastError); }
+    public void setLastError(String v) { setString(lastError, v, null); }
+
+    public static final Property parsedCount =
+            newProperty(Flags.SUMMARY | Flags.READONLY, 0, null);
+    public int getParsedCount() { return getInt(parsedCount); }
+    public void setParsedCount(int v) { setInt(parsedCount, v, null); }
+
+    public static final Property addedCount =
+            newProperty(Flags.SUMMARY | Flags.READONLY, 0, null);
+    public int getAddedCount() { return getInt(addedCount); }
+    public void setAddedCount(int v) { setInt(addedCount, v, null); }
+
+    /** Versione del modulo che sta girando: leggibile senza fermare la station. */
+    public static final Property moduleVersion =
+            newProperty(Flags.READONLY | Flags.SUMMARY | Flags.TRANSIENT, "unknown", null);
+    public String getModuleVersion() { return getString(moduleVersion); }
+    public void setModuleVersion(String v) { setString(moduleVersion, v, null); }
+
+    // Upload XML dal WB client: il WB scrive bytes (base64) + nome qui, poi invoca uploadXml.
+    public static final Property pendingUploadName =
+            newProperty(Flags.HIDDEN | Flags.TRANSIENT, "", null);
+    public String getPendingUploadName() { return getString(pendingUploadName); }
+    public void setPendingUploadName(String v) { setString(pendingUploadName, v, null); }
+
+    public static final Property pendingUploadB64 =
+            newProperty(Flags.HIDDEN | Flags.TRANSIENT, "", null);
+    public String getPendingUploadB64() { return getString(pendingUploadB64); }
+    public void setPendingUploadB64(String v) { setString(pendingUploadB64, v, null); }
+
+    ////////////////////////////////////////////////////////////////
+    // Fault reporting — configFail()/configOk() rendono l'esito dell'import
+    // visibile nell'albero della station, non solo in lastError/JUL.
+    ////////////////////////////////////////////////////////////////
+
+    /**
+     * Traccia se il fault corrente è nostro. configOk() va chiamato SOLO dopo un
+     * nostro configFail(), altrimenti si cancella il fault di qualcun altro.
+     * Transiente per natura: lo stato di fault di un BComponent è runtime, non
+     * persistito, quindi dopo un riavvio si riparte puliti (scelta della spec).
+     */
+    private volatile boolean inConfigFail = false;
+
+    private void fail(String lexKey, String detail) {
+        inConfigFail = true;
+        String msg = Lexicon.make("am8xControl").getText(lexKey);
+        setLastError(msg + ": " + detail);
+        configFail(msg + ": " + detail);
+    }
+
+    private void clearFail() {
+        if (inConfigFail) { inConfigFail = false; configOk(); }
+    }
+
+    /**
+     * Porta d'accesso pubblica e volutamente stretta a fail(), per le classi
+     * BJob (pacchetto .job) che non possono chiamare il metodo private. Usata
+     * da BAm8xDiscoverJob per segnalare un fallimento del job come fault del
+     * servizio. clearFail() resta privato: solo questo componente decide
+     * quando il proprio fault e' risolto.
+     */
+    public void reportJobFailure(String lexKey, String detail) {
+        fail(lexKey, detail);
+    }
+
+    ////////////////////////////////////////////////////////////////
+    // Actions
+    ////////////////////////////////////////////////////////////////
+
+    /** Decodifica pendingUploadB64 e scrive in ^shared/pendingUploadName. */
+    public static final Action uploadXml = newAction(Flags.OPERATOR | Flags.HIDDEN, null);
+    public void uploadXml() { invoke(uploadXml, null, null); }
+    public void doUploadXml() {
+        String name = getPendingUploadName();
+        String b64 = getPendingUploadB64();
+        if (name == null || name.isEmpty() || b64 == null || b64.isEmpty()) {
+            setLastError("uploadXml: nome o bytes mancanti");
+            return;
+        }
+        try {
+            name = safeUploadFileName(name);
+            byte[] data = java.util.Base64.getDecoder().decode(b64);
+            File sharedDir = getStationSharedDir();
+            Files.createDirectories(sharedDir.toPath());
+            File dest = new File(sharedDir, name);
+            Files.write(dest.toPath(), data);
+            LOG.info("[Am8xImportService] uploadXml OK: " + dest.getAbsolutePath() + " (" + data.length + " bytes)");
+            setLastImportStatus("upload OK: " + name);
+            // Auto-imposta xmlFilePath sul file appena caricato
+            setXmlFilePath(BOrd.make(sharedFileOrd(name)));
+        } catch (Exception e) {
+            LOG.severe("[Am8xImportService] uploadXml failed: " + e.getMessage());
+            fail("import.fail.upload", e.getMessage());
+        } finally {
+            // Pulisci i buffer per non occupare memoria con i bytes
+            setPendingUploadB64("");
+            setPendingUploadName("");
+        }
+    }
+
+    public static final Action setupAndDiscover = newAction(Flags.HIDDEN, new BAm8xWizardInput(), null);
+    public void setupAndDiscover(BAm8xWizardInput input) { invoke(setupAndDiscover, input, null); }
+    public void doSetupAndDiscover(BAm8xWizardInput input) {
+        if (input.getXmlFilePath() != null && !BOrd.DEFAULT.equals(input.getXmlFilePath())) {
+            setXmlFilePath(input.getXmlFilePath());
+        }
+        if (input.getModbusNetworkSlot() != null && !input.getModbusNetworkSlot().isEmpty()) {
+            setModbusNetworkSlot(input.getModbusNetworkSlot());
+        }
+        if (input.getDefaultIpAddress() != null && !input.getDefaultIpAddress().isEmpty()) {
+            setModbusIpAddress(input.getDefaultIpAddress());
+        }
+        if (input.getDefaultPort() > 0) {
+            setModbusTcpPort(input.getDefaultPort());
+        }
+        if (input.getDeviceAddressStart() > 0) {
+            setDeviceAddressStart(input.getDeviceAddressStart());
+        }
+        if (input.getDeviceType() != null) {
+            setDeviceType(input.getDeviceType());
+        }
+        doDiscover();
+    }
+
+    /** Parsa l'XML e popola discovery/ con i BAm8xDiscoveryCandidate. */
+    public static final Action discover = newAction(Flags.OPERATOR, null);
+    public BOrd discover() { return (BOrd) invoke(discover, null, null); }
+    public BOrd doDiscover() {
+        clearFail();
+        setLastError("");
+        return new BAm8xDiscoverJob(this).submit(null);
+    }
+
+    /** Crea i point Modbus per i candidate con selected=true. Eseguito come BJob: vedi runCommit(BJob). */
+    public static final Action addSelected = newAction(Flags.HIDDEN, null);
+    public BOrd addSelected() { return (BOrd) invoke(addSelected, null, null); }
+    public BOrd doAddSelected() {
+        clearFail();
+        return new BAm8xCommitJob(this).submit(null);
+    }
+
+    /**
+     * Corpo di addSelected/commit, eseguito dentro BAm8xCommitJob.
+     *
+     * BSimpleJob chiama success() se questo metodo ritorna normalmente: la
+     * cancellazione va quindi propagata come JobCancelException, mai con un
+     * return silenzioso (vedi BAm8xDiscoverJob per lo stesso pattern).
+     */
+    public void runCommit(BJob job) throws Exception {
+        // Dichiarati fuori dal try: il catch di JobCancelException deve poterli
+        // leggere per registrare quanto era stato scritto prima della cancellazione.
+        int created = 0;
+        int skipped = 0;
+        try {
+            setLastError("");
+            setLastImportStatus("addSelected: avvio…");
+
+            BAm8xDiscoveryReport report = getDiscoveryReport();
+            if (report == null) {
+                fail("import.fail.noReport", "discovery report assente");
+                setLastImportStatus("addSelected FAILED: eseguire prima discover()");
+                throw new IllegalStateException("eseguire prima discover()");
+            }
+
+            // Navigate to /Drivers
+            BComponent drivers = resolveDrivers();
+            if (drivers == null) {
+                fail("import.fail.noDrivers", "resolveDrivers() ha restituito null");
+                setLastImportStatus("addSelected FAILED: /Drivers non trovato");
+                LOG.warning("[Am8xImportService] addSelected failed: /Drivers non trovato");
+                throw new IllegalStateException("/Drivers non trovato");
+            }
+
+            // Tipo device scelto nel popup Discover (ModbusTcp vs ModbusGateway)
+            boolean gateway = isGatewayMode();
+            LOG.info("[Am8xImportService] addSelected: deviceType ordinal="
+                    + getDeviceType().getOrdinal() + " gateway=" + gateway);
+
+            // Network slot: in gateway mode usa un nome dedicato (così il nodo è
+            // chiaramente distinto da una rete TCP) a meno che l'utente non abbia
+            // personalizzato modbusNetworkSlot oltre il default.
+            String networkSlot = getModbusNetworkSlot();
+            if (gateway && (networkSlot == null || networkSlot.isEmpty()
+                    || "ModbusTcpNetwork".equals(networkSlot))) {
+                networkSlot = "ModbusTcpGateway";
+            }
+
+            // Ensure Modbus network (devices are created per-panel below).
+            // In gateway mode IP/port vivono sulla rete BModbusTcpGateway.
+            BModbusTcpNetwork network;
+            try {
+                network = ModbusTreeBuilder.ensureNetwork(drivers, networkSlot, gateway,
+                        getModbusIpAddress(), getModbusTcpPort() > 0 ? getModbusTcpPort() : 502);
+                LOG.info("[Am8xImportService] addSelected: network slot=" + networkSlot
+                        + " type=" + network.getType());
+            } catch (Exception e) {
+                LOG.severe("[Am8xImportService] addSelected network failed: " + e.getMessage());
+                throw e;
+            }
+
+            // ====== NUOVA LOGICA: CREAZIONE DEVICE STATICO "CENTRALE" ======
+            Am8xAlarmAutomation.ensureAlarmClasses("Z");
+            try {
+                int port = getModbusTcpPort() > 0 ? getModbusTcpPort() : 502;
+                BModbusClientDevice centraleDev = ModbusTreeBuilder.ensureDevice(
+                        network, "CENTRALE", getModbusIpAddress(), port, 1, gateway);
+                BComponent centralePoints = ModbusTreeBuilder.getPointsContainer(centraleDev);
+                if (centralePoints != null) {
+                    // Estrai tutte le zone dai candidati per la CENTRALE
+                    java.util.Map<Integer, String> zones = new java.util.TreeMap<>();
+                    for (BAm8xPanelFolder panel : report.getPanelFolders()) {
+                        for (BAm8xDiscoveryCandidate c : panel.getCandidates()) {
+                            int z = c.getZoneAddress();
+                            if (z > 0) {
+                                if (!zones.containsKey(z) || zones.get(z) == null || zones.get(z).isEmpty()) {
+                                    zones.put(z, c.getZoneLabel());
+                                }
+                            }
+                        }
+                    }
+                    ModbusPointFactory.populateCentralePoints(centralePoints, zones);
+                }
+            } catch (Exception e) {
+                LOG.warning("[Am8xImportService] Errore creazione device CENTRALE: " + e.getMessage());
+            }
+            // ===============================================================
+
+            // total = candidate selezionati, calcolato prima del ciclo: è il numero
+            // che l'utente legge nella tabella, quindi la percentuale del job
+            // corrisponde a qualcosa di riconoscibile.
+            int total = 0;
+            for (BAm8xPanelFolder panel : report.getPanelFolders()) {
+                for (BAm8xDiscoveryCandidate c : panel.getCandidates()) {
+                    if (c.getSelected()) total++;
+                }
+            }
+            int done = 0;
+
+            int panelsUsed = 0;
+            int panelAlarmIndex = 0;
+
+            // Rileva le collisioni di slot name DENTRO questo commit: due
+            // CandidateKey diversi che finiscono sullo stesso slotName. Vive
+            // solo per la durata di questo commit — NON va confusa con un
+            // re-import (stesso CandidateKey), che deve continuare a passare
+            // da replaceStatePoint senza toccare il contatore.
+            java.util.Map<String, CandidateKey> writtenThisRun = new java.util.HashMap<>();
+
+            for (BAm8xPanelFolder panel : report.getPanelFolders()) {
+                // Trova lo slot name del panel dal suo Property nel report
+                String panelSlot = panelSlotNameOf(report, panel);
+                if (panelSlot == null) continue;
+                panelAlarmIndex++;
+                Am8xAlarmAutomation.AlarmClassNames panelAlarmClasses =
+                        Am8xAlarmAutomation.ensureAlarmClasses(
+                                Am8xAlarmAutomation.panelAlarmPrefix(panelSlot, panelAlarmIndex));
+
+                // Crea/aggiorna BModbusTcpDevice con la config del panel
+                String ip   = panel.getIpAddress();
+                int    port = panel.getPort() > 0 ? panel.getPort() : 502;
+                int    devAddr = panel.getDeviceAddress();
+
+                BModbusClientDevice dev;
+                try {
+                    dev = ModbusTreeBuilder.ensureDevice(network, panelSlot, ip, port, devAddr, gateway);
+                } catch (Exception e) {
+                    LOG.warning("[Am8xImportService] ensureDevice for " + panelSlot
+                            + " failed: " + e.getMessage());
+                    continue;
+                }
+
+                BComponent pointsContainer = ModbusTreeBuilder.getPointsContainer(dev);
+                if (pointsContainer == null) {
+                    LOG.warning("[Am8xImportService] no 'points' slot on device " + panelSlot);
+                    continue;
+                }
+                panelsUsed++;
+                java.util.Set<String> parentModuleSlotsWithSubModules =
+                        parentModuleSlotsWithSubModules(panel);
+
+                for (BAm8xDiscoveryCandidate c : panel.getCandidates()) {
+                    // Il check di cancellazione resta qui, prima dei filtri: la
+                    // cancellazione deve restare reattiva anche durante una lunga
+                    // sequenza di candidate deselezionati.
+                    if (job.getJobState() == BJobState.canceling) throw new JobCancelException();
+
+                    String loopSlot   = String.format("L%02d", c.getLoopNumber());
+                    String deviceSlot = buildSlotName(c);     // es. "L01S001"
+
+                    if (parentModuleSlotsWithSubModules.contains(deviceSlot)) {
+                        removeLegacyParentModulePoint(pointsContainer, loopSlot, deviceSlot);
+                        skipped++;
+                        continue;
+                    }
+
+                    if (!c.getSelected()) { skipped++; continue; }
+
+                    // total conta solo i candidate selezionati: done/progress
+                    // avanzano solo qui, altrimenti supererebbero il 100% non
+                    // appena il panel contiene candidate deselezionati.
+                    done++;
+                    job.progress(total == 0 ? 100 : done * 100 / total);
+
+                    boolean sensorPoint = isSensorPointSlot(deviceSlot);
+
+                    if (c.getAlreadyImported()) {
+                        BAm8xStatePoint existingStatePt =
+                                Am8xAlarmAutomation.findStatePoint(pointsContainer, loopSlot, deviceSlot);
+                        if (existingStatePt != null) {
+                            if (existingStatePt instanceof BAm8xModuleStatePoint) {
+                                BComponent pointParent = existingStatePt.getParentComponent();
+                                existingStatePt = ModbusPointFactory.migrateStatePointType(
+                                        pointParent, existingStatePt);
+                            }
+                            if (existingStatePt != null) existingStatePt.ensureCommandConfigSlots();
+                        }
+                        Am8xAlarmAutomation.ensureStatePointAlarmExts(existingStatePt, panelAlarmClasses);
+                        skipped++;
+                        continue;
+                    }
+
+                    // Rileva la collisione PRIMA di creare qualunque slot: uno
+                    // stesso CandidateKey visto di nuovo qui (stesso loop/pos/
+                    // panel) e' un re-import intenzionale e non entra nella
+                    // mappa — replaceStatePoint continua a fare l'overwrite
+                    // come oggi. Un CandidateKey DIVERSO che reclama uno slot
+                    // gia' scritto in QUESTO commit SOTTO LO STESSO panel e' la
+                    // collisione vera: senza il contatore il secondo
+                    // cancellerebbe il primo in silenzio.
+                    //
+                    // La chiave della mappa include il panelSlot: due panel
+                    // diversi (caso normale su siti multi-panel cablati in
+                    // modo identico) contengono legittimamente entrambi, per
+                    // esempio, "L01S002" sotto folder separate — non e' una
+                    // collisione, e chiavare solo sul nome nudo rinominava
+                    // ogni panel dopo il primo (visto in review).
+                    CandidateKey key = CandidateKey.parse(c.getPanelLabel(), deviceSlot).orElse(null);
+                    if (key != null) {
+                        String collisionKey = Am8xSlotNames.collisionKey(panelSlot, deviceSlot);
+                        CandidateKey previous = writtenThisRun.get(collisionKey);
+                        if (previous != null && !previous.equals(key)) {
+                            LOG.warning("[Am8xImportService] collisione slot '" + deviceSlot
+                                    + "' nel panel '" + panelSlot + "': " + previous + " vs " + key);
+                            deviceSlot = Am8xSlotNames.unique(deviceSlot,
+                                    s -> writtenThisRun.containsKey(Am8xSlotNames.collisionKey(panelSlot, s)));
+                            collisionKey = Am8xSlotNames.collisionKey(panelSlot, deviceSlot);
+                        }
+                        writtenThisRun.put(collisionKey, key);
+                    }
+
+                    try {
+                        BComponent loopFolder = ModbusTreeBuilder.ensureFolder(pointsContainer, loopSlot);
+
+                        // Punto State custom (nome = deviceSlot, senza suffisso _State)
+                        BAm8xStatePoint statePt = ModbusPointFactory.createStatePoint(
+                                loopFolder, deviceSlot, c.getStateAddress(),
+                                c.getDeviceType(), c.getDeviceLabel(),
+                                c.getZoneAddress(), c.getZoneLabel());
+
+                        if (statePt != null) {
+                            statePt.ensureCommandConfigSlots();
+                            applyDisplayName(statePt);
+                        }
+
+                        niagara.control.BNumericPoint analogPt = null;
+                        if (sensorPoint) {
+                            String analogSlot = deviceSlot + "_Analog";
+                            analogPt = ModbusPointFactory.createNumericPoint(
+                                    loopFolder, analogSlot, c.getAnalogAddress());
+
+                            Am8xAlarmAutomation.ensureValoreCameraAlarmExt(analogPt, panelAlarmClasses);
+
+                            if (analogPt != null && statePt != null) {
+                                ModbusPointFactory.createLink(analogPt, statePt, "valoreCamera");
+                            }
+                        }
+                        Am8xAlarmAutomation.ensureStatePointAlarmExts(statePt, panelAlarmClasses);
+
+                        c.setAlreadyImported(true);
+                        if (statePt != null || analogPt != null) created++;
+                        else                                     skipped++;
+                    } catch (Exception e) {
+                        LOG.warning("[Am8xImportService] addSelected candidate " + deviceSlot
+                                + " failed: " + e.getMessage());
+                    }
+                }
+            }
+
+            setAddedCount(getAddedCount() + created);
+            setLastImportStatus("addSelected OK — " + created + " creati, " + skipped
+                    + " saltati, " + panelsUsed + " centrali");
+            LOG.info("[Am8xImportService] addSelected: " + created + " created, "
+                    + skipped + " skipped, " + panelsUsed + " panels");
+
+        } catch (JobCancelException e) {
+            // Cancellazione, non un fallimento: non toccare lastError (resta
+            // esclusivo del path di fallimento genuino). lastImportStatus e
+            // addedCount vanno comunque aggiornati con quanto scritto finora,
+            // cosi' un nuovo commit puo' riprendere in modo idempotente.
+            setAddedCount(getAddedCount() + created);
+            setLastImportStatus("addSelected CANCELLED — " + created + " creati, " + skipped + " saltati");
+            LOG.info("[Am8xImportService] addSelected cancelled: " + created + " created, "
+                    + skipped + " skipped so far");
+            throw e;
+        } catch (Exception e) {
+            fail("import.fail.job", e.getClass().getSimpleName() + ": " + e.getMessage());
+            setLastImportStatus("commit FAILED: " + e.getMessage());
+            LOG.severe("[Am8xImportService] commit failed: " + e.getMessage());
+            throw e;
+        }
+    }
+
+    /** Alias per addSelected() usato dalla UI */
+    public static final Action commit = newAction(Flags.OPERATOR, null);
+    public BOrd commit() { return (BOrd) invoke(commit, null, null); }
+    public BOrd doCommit() { return doAddSelected(); }
+
+    ////////////////////////////////////////////////////////////////
+    // Display name a template — Fase display name
+    ////////////////////////////////////////////////////////////////
+
+    /**
+     * Scrive il display name solo se diverso: evita mutazioni inutili
+     * dell'albero (es. rilanciare l'action su migliaia di point invariati).
+     *
+     * Il display name in Niagara si imposta sul PARENT tramite la Property
+     * con cui il figlio è montato (setDisplayName(Property, BFormat, Context)
+     * — non esiste un setter diretto sul componente stesso). Il template è
+     * già risolto in una stringa letterale da Am8xDisplayNameFormatter, che
+     * espone anche escapeForFormat() (raddoppio dei '%') come parte della
+     * stessa logica pura e testabile — non esiste un BFormat.escape() nella
+     * API (verificato con javap).
+     */
+    public void applyDisplayName(BComponent point) {
+        Optional<Am8xIdentity> maybe = Am8xIdentitySource.fromComponent(point);
+        if (!maybe.isPresent()) return;
+
+        BComponent parent = point.getParentComponent();
+        Property propInParent = point.getPropertyInParentComponent();
+        if (parent == null || propInParent == null) return;
+
+        String wanted = Am8xDisplayNameFormatter.render(
+                getDisplayNameFormat(), point.getName(), maybe.get());
+        String current = point.getDisplayName(null);
+        if (!wanted.equals(current)) {
+            parent.setDisplayName(propInParent,
+                    BFormat.make(Am8xDisplayNameFormatter.escapeForFormat(wanted)), null);
+        }
+    }
+
+    /** Riapplica i display name all'albero esistente. L'operatore decide quando. */
+    public static final Action applyDisplayNames = newAction(Flags.OPERATOR, null);
+    public BOrd applyDisplayNames() { return (BOrd) invoke(applyDisplayNames, null, null); }
+    public BOrd doApplyDisplayNames() {
+        clearFail();
+        setLastError("");
+        return new BAm8xDisplayNameJob(this).submit(null);
+    }
+
+    /**
+     * Corpo di applyDisplayNames, eseguito dentro BAm8xDisplayNameJob.
+     *
+     * BSimpleJob chiama success() se run() ritorna normalmente: la
+     * cancellazione va propagata come JobCancelException (vedi
+     * BAm8xDiscoverJob per lo stesso pattern), mai con un break silenzioso.
+     */
+    public void runApplyDisplayNames(BJob job) throws Exception {
+        List<BComponent> points = collectImportedPoints();
+        int total = points.size();
+        int done = 0;
+        for (BComponent p : points) {
+            if (job.getJobState() == BJobState.canceling) throw new JobCancelException();
+            applyDisplayName(p);
+            done++;
+            job.progress(total == 0 ? 100 : done * 100 / total);
+        }
+        setLastImportStatus("display name applicati: " + done);
+    }
+
+    /**
+     * Cammina l'albero importato per raccogliere tutti i BAm8xStatePoint:
+     * stessa navigazione device -> pointsContainer di
+     * Am8xAlarmAutomation.ensureExistingTreeAlarmExts (via
+     * Am8xAlarmAutomation.collectDevices), riusata qui invece di duplicarla —
+     * è lo stesso albero e due walk indipendenti potrebbero divergere.
+     */
+    private List<BComponent> collectImportedPoints() {
+        List<BComponent> out = new ArrayList<>();
+        BModbusTcpNetwork network = findExistingNetwork();
+        if (network == null) return out;
+
+        for (BModbusClientDevice device : Am8xAlarmAutomation.collectDevices(network)) {
+            BComponent pointsContainer = ModbusTreeBuilder.getPointsContainer(device);
+            collectStatePointsRecursive(pointsContainer, out);
+        }
+        return out;
+    }
+
+    private static void collectStatePointsRecursive(BComponent parent, List<BComponent> out) {
+        if (parent == null) return;
+        if (parent instanceof BAm8xStatePoint) {
+            out.add(parent);
+            return;
+        }
+        for (Property p : parent.getPropertiesArray()) {
+            try {
+                BValue child = parent.get(p);
+                if (child instanceof BComponent) collectStatePointsRecursive((BComponent) child, out);
+            } catch (Exception ignore) {}
+        }
+    }
+
+    /** Rimuove tutti i candidate e formatta i counter */
+    public static final Action clearAll = newAction(Flags.OPERATOR, null);
+    public void clearAll() { invoke(clearAll, null, null); }
+    public void doClearAll() {
+        try {
+            BValue v = get(DISCOVERY_SLOT);
+            if (v instanceof BComponent) {
+                remove(DISCOVERY_SLOT);
+            }
+        } catch (Exception ignore) {}
+        setParsedCount(0);
+        setAddedCount(0);
+        setLastImportStatus("clear completato");
+    }
+
+    /** Trova lo slot name di un panel folder nel report iterando le sue properties. */
+    private static String panelSlotNameOf(BAm8xDiscoveryReport report, BAm8xPanelFolder panel) {
+        for (Property p : report.getPropertiesArray()) {
+            try {
+                if (report.get(p) == panel) return p.getName();
+            } catch (Exception ignore) {}
+        }
+        return null;
+    }
+
+    private BComponent resolveDrivers() {
+        String[] ords = {
+                "station:|slot:/Drivers",
+                "local:|station:|slot:/Drivers",
+                "slot:/Drivers"
+        };
+        for (String ord : ords) {
+            try {
+                BValue v = (BValue) BOrd.make(ord).resolve(this, null).get();
+                if (v instanceof BComponent) return (BComponent) v;
+            } catch (Exception e) {
+                LOG.fine("[Am8xImportService] resolveDrivers ORD '" + ord
+                        + "' failed: " + e.getMessage());
+            }
+        }
+
+        try {
+            BComponent root = this;
+            while (root.getParentComponent() != null) {
+                root = root.getParentComponent();
+            }
+            BValue v = root.get("Drivers");
+            if (v instanceof BComponent) return (BComponent) v;
+        } catch (Exception e) {
+            LOG.fine("[Am8xImportService] resolveDrivers parent-walk failed: " + e.getMessage());
+        }
+        LOG.warning("[Am8xImportService] resolveDrivers failed: /Drivers not found from "
+                + safeOrd());
+        return null;
+    }
+
+    private void refreshAlarmAutomationForExistingTree() {
+        try {
+            BModbusTcpNetwork network = findExistingNetwork();
+            if (network == null) return;
+
+            int migrated = normalizeExistingStatePointTypes(network);
+            int updated = Am8xAlarmAutomation.ensureExistingTreeAlarmExts(network);
+            int commandPoints = ensureCommandConfigSlots(network);
+            if (migrated > 0) {
+                setLastImportStatus("service started: tipi punti OK — "
+                        + migrated + " moduli aggiornati");
+            } else if (updated > 0) {
+                setLastImportStatus("service started: alarm automation OK — "
+                        + updated + " punti aggiornati");
+            } else if (commandPoints > 0) {
+                setLastImportStatus("service started: Inhibit CMD OK — "
+                        + commandPoints + " punti verificati");
+            }
+        } catch (Exception e) {
+            LOG.warning("[Am8xImportService] refreshAlarmAutomationForExistingTree failed: "
+                    + e.getMessage());
+        }
+    }
+
+    private BModbusTcpNetwork findExistingNetwork() {
+        BComponent drivers = resolveDrivers();
+        if (drivers == null) return null;
+
+        try {
+            BValue v = drivers.get(getModbusNetworkSlot());
+            if (v instanceof BModbusTcpNetwork) return (BModbusTcpNetwork) v;
+        } catch (Exception ignore) {}
+
+        for (Property p : drivers.getPropertiesArray()) {
+            try {
+                BValue v = drivers.get(p);
+                if (v instanceof BModbusTcpNetwork) return (BModbusTcpNetwork) v;
+            } catch (Exception ignore) {}
+        }
+        return null;
+    }
+
+    private static String buildSlotName(BAm8xDiscoveryCandidate c) {
+        String name = c.getCandidateSlotName();
+        if (name != null && !name.isEmpty()) return name;
+        // Fallback for candidates discovered before candidateSlotName was added
+        String type = c.getDeviceType();
+        boolean isModule = type != null && type.startsWith("M");
+        return isModule
+            ? String.format("L%02dM%03d", c.getLoopNumber(), c.getPositionOnLoop())
+            : String.format("L%02dS%03d", c.getLoopNumber(), c.getPositionOnLoop());
+    }
+
+    private static boolean isSensorPointSlot(String slotName) {
+        return slotName != null && slotName.matches("L\\d+S\\d+");
+    }
+
+    private static java.util.Set<String> parentModuleSlotsWithSubModules(BAm8xPanelFolder panel) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        if (panel == null) return out;
+
+        for (BAm8xDiscoveryCandidate c : panel.getCandidates()) {
+            String slot = buildSlotName(c);
+            int sep = slot == null ? -1 : slot.indexOf('_');
+            if (sep > 0 && ModbusPointFactory.isModuleStateSlot(slot)) {
+                out.add(slot.substring(0, sep));
+            }
+        }
+        return out;
+    }
+
+    private static void removeLegacyParentModulePoint(
+            BComponent pointsContainer, String loopSlot, String deviceSlot) {
+        try {
+            BValue loopValue = pointsContainer == null ? null : pointsContainer.get(loopSlot);
+            if (!(loopValue instanceof BComponent)) return;
+
+            BComponent loopFolder = (BComponent) loopValue;
+            BValue existing = loopFolder.get(deviceSlot);
+            if (existing instanceof BAm8xStatePoint) {
+                loopFolder.remove(deviceSlot);
+                LOG.info("[Am8xImportService] removed parent module point with submodules: "
+                        + loopSlot + "/" + deviceSlot);
+            }
+        } catch (Exception e) {
+            LOG.warning("[Am8xImportService] remove parent module point " + loopSlot
+                    + "/" + deviceSlot + " failed: " + e.getMessage());
+        }
+    }
+
+    private static int normalizeExistingStatePointTypes(BComponent parent) {
+        if (parent == null) return 0;
+
+        int count = 0;
+        for (Property p : parent.getPropertiesArray()) {
+            try {
+                BValue child = parent.get(p);
+                if (child instanceof BAm8xStatePoint) {
+                    String slotName = p.getName();
+                    if (child instanceof BAm8xModuleStatePoint) {
+                        BAm8xStatePoint migrated =
+                                ModbusPointFactory.migrateStatePointType(parent, (BAm8xStatePoint) child);
+                        if (migrated != null && !(migrated instanceof BAm8xModuleStatePoint)) count++;
+                    } else {
+                        ((BAm8xStatePoint) child).ensureCommandConfigSlots();
+                    }
+                    continue;
+                }
+
+                if (child instanceof BComponent) {
+                    count += normalizeExistingStatePointTypes((BComponent) child);
+                }
+            } catch (Exception ignore) {}
+        }
+        return count;
+    }
+
+    private static int ensureCommandConfigSlots(BComponent parent) {
+        if (parent == null) return 0;
+
+        int count = 0;
+        if (parent instanceof BAm8xStatePoint) {
+            BAm8xStatePoint point = (BAm8xStatePoint) parent;
+            point.ensureCommandConfigSlots();
+            return 1;
+        }
+
+        for (Property p : parent.getPropertiesArray()) {
+            try {
+                BValue child = parent.get(p);
+                if (child instanceof BComponent) {
+                    count += ensureCommandConfigSlots((BComponent) child);
+                }
+            } catch (Exception ignore) {}
+        }
+        return count;
+    }
+
+    /** Rimuove i point creati da questo servizio. Fase 5. */
+    public static final Action clearImported = newAction(Flags.HIDDEN, null);
+    public void clearImported() { invoke(clearImported, null, null); }
+    public void doClearImported() {
+        setLastImportStatus("clearImported: non ancora implementato (Fase 5)");
+    }
+
+    /** Seleziona tutti i candidate (selected=true). */
+    public static final Action selectAll = newAction(Flags.HIDDEN, null);
+    public void selectAll() { invoke(selectAll, null, null); }
+    public void doSelectAll() {
+        BAm8xDiscoveryReport report = getDiscoveryReport();
+        if (report == null) { setLastImportStatus("selectAll: nessun discovery eseguito"); return; }
+        for (BAm8xDiscoveryCandidate c : report.getCandidates()) c.setSelected(true);
+        report.refreshSelectedCount();
+        setLastImportStatus("selectAll: " + report.getTotalCandidates() + " selezionati");
+    }
+
+    /** Deseleziona tutti i candidate (selected=false). */
+    public static final Action selectNone = newAction(Flags.HIDDEN, null);
+    public void selectNone() { invoke(selectNone, null, null); }
+    public void doSelectNone() {
+        BAm8xDiscoveryReport report = getDiscoveryReport();
+        if (report == null) { setLastImportStatus("selectNone: nessun discovery eseguito"); return; }
+        for (BAm8xDiscoveryCandidate c : report.getCandidates()) c.setSelected(false);
+        report.refreshSelectedCount();
+        setLastImportStatus("selectNone: 0 selezionati");
+    }
+
+    ////////////////////////////////////////////////////////////////
+    // BIService lifecycle
+    ////////////////////////////////////////////////////////////////
+
+    @Override
+    public void serviceStarted() throws Exception {
+        String banner = readVersionBanner();
+        setModuleVersion(banner);
+        LOG.info("[am8xControl] " + banner + " — " + safeOrd());
+        LOG.info("[Am8xImportService] serviceStarted — " + safeOrd());
+        setLastImportStatus("service started");
+        refreshAlarmAutomationForExistingTree();
+    }
+
+    @Override
+    public void serviceStopped() throws Exception {
+        LOG.info("[Am8xImportService] serviceStopped — " + safeOrd());
+    }
+
+    @Override
+    public Type[] getServiceTypes() { return new Type[]{ TYPE }; }
+
+    ////////////////////////////////////////////////////////////////
+    // Internals — discovery
+    ////////////////////////////////////////////////////////////////
+
+    public BAm8xDiscoveryReport ensureDiscoveryReport() {
+        // Try to reuse existing child
+        try {
+            BValue v = get(DISCOVERY_SLOT);
+            if (v instanceof BAm8xDiscoveryReport) {
+                // Forza HIDDEN sullo slot esistente (per nasconderlo dalla Database view del Manager)
+                try {
+                    Property p = (Property) getSlot(DISCOVERY_SLOT);
+                    if (p != null) setFlags(p, Flags.HIDDEN);
+                } catch (Exception ignore) {}
+                return (BAm8xDiscoveryReport) v;
+            }
+            // Wrong type: remove and recreate
+            for (Property p : getPropertiesArray()) {
+                if (DISCOVERY_SLOT.equals(p.getName())) { remove(p); break; }
+            }
+        } catch (Exception ignore) {}
+        BAm8xDiscoveryReport report = new BAm8xDiscoveryReport();
+        try { add(DISCOVERY_SLOT, report, Flags.HIDDEN); } catch (Exception e) {
+            LOG.warning("[Am8xImportService] cannot add discovery child: " + e.getMessage());
+        }
+        return report;
+    }
+
+    private BAm8xDiscoveryReport getDiscoveryReport() {
+        try {
+            BValue v = get(DISCOVERY_SLOT);
+            return v instanceof BAm8xDiscoveryReport ? (BAm8xDiscoveryReport) v : null;
+        } catch (Exception ignore) { return null; }
+    }
+
+    public void addCandidate(BAm8xPanelFolder parent, CandidateKey key,
+                              Am8xDeviceDescriptor d, Am8xSubModuleDescriptor sub) {
+        BAm8xDiscoveryCandidate c = new BAm8xDiscoveryCandidate();
+        c.setPanelLabel(d.getPanelLabel());
+        c.setLoopNumber(key.getLoop());
+        c.setPositionOnLoop(key.getPos());
+        c.setZoneAddress(sub != null ? sub.getZoneAddress() : d.getZoneAddress());
+        c.setZoneLabel(sub != null ? sub.getZoneLabel() : d.getZoneLabel());
+
+        if (sub != null) {
+            c.setDeviceType(sub.getType());
+            c.setDeviceLabel(sub.getLabel());
+            c.setStateAddress(Am8xModbusAddressing.moduleState(
+                    key.getLoop(), key.getParentModulePos(), key.getChannel()));
+            c.setAnalogAddress(Am8xModbusAddressing.moduleAnalog(
+                    key.getLoop(), key.getParentModulePos(), key.getChannel()));
+        } else {
+            c.setDeviceType(d.getDeviceType());
+            c.setDeviceLabel(d.getLabel());
+            if (key.getKind() == CandidateKey.Kind.MODULE) {
+                c.setStateAddress(Am8xModbusAddressing.moduleState(key.getLoop(), key.getPos(), 0));
+                c.setAnalogAddress(Am8xModbusAddressing.moduleAnalog(key.getLoop(), key.getPos(), 0));
+            } else {
+                c.setStateAddress(Am8xModbusAddressing.sensorState(key.getLoop(), key.getPos()));
+                c.setAnalogAddress(Am8xModbusAddressing.sensorAnalog(key.getLoop(), key.getPos()));
+            }
+        }
+
+        c.setCandidateSlotName(key.toSlotName());
+        c.setPanelSlotName(key.toPanelSlotName());
+        try {
+            parent.add(key.toSlotName(), c, Flags.SUMMARY);
+        } catch (Exception e) {
+            LOG.warning("[Am8xImportService] cannot add candidate " + key.toSlotName()
+                    + ": " + e.getMessage());
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////
+    // Internals — XML loading
+    ////////////////////////////////////////////////////////////////
+
+    public List<Am8xDeviceDescriptor> loadDescriptors() throws Exception {
+        BOrd ord = getXmlFilePath();
+        if (ord != null && !BOrd.DEFAULT.equals(ord)) {
+            String ordStr = ord.toString();
+            if (ordStr != null && !ordStr.isEmpty() && !"null:".equals(ordStr)) {
+                // Tenta più strategie per risolvere il path file
+                Exception lastEx = null;
+                String[] candidates = buildOrdCandidates(ordStr);
+                for (String cand : candidates) {
+                    try {
+                        LOG.info("[Am8xImportService] tentativo resolve ORD: " + cand);
+                        BOrd candOrd = BOrd.make(cand);
+                        Object resolved = candOrd.resolve(this, null).get();
+                        if (resolved instanceof BIFile) {
+                            try (InputStream in = ((BIFile) resolved).getInputStream()) {
+                                LOG.info("[Am8xImportService] file letto con ord: " + cand);
+                                return Am8xXmlParser.parseStream(in);
+                            }
+                        }
+                    } catch (Exception e) {
+                        lastEx = e;
+                        LOG.info("[Am8xImportService] ORD '" + cand + "' fallito: "
+                                + e.getClass().getSimpleName() + ": " + e.getMessage());
+                    }
+                }
+                // Fallback finale: solo path station-side ricavati dalle API Niagara.
+                if (ordStr.contains("^") || ordStr.contains("~") || ordStr.contains("file:!")) {
+                    try {
+                        for (File f : buildFsFileCandidates(ordStr)) {
+                            try {
+                                if (f.exists() && f.canRead()) {
+                                    LOG.info("[Am8xImportService] file letto via FS diretto: " + f.getAbsolutePath());
+                                    try (InputStream in = new FileInputStream(f)) {
+                                        return Am8xXmlParser.parseStream(in);
+                                    }
+                                } else {
+                                    LOG.info("[Am8xImportService] FS path non trovato: " + f.getAbsolutePath());
+                                }
+                            } catch (Exception e) { lastEx = e; }
+                        }
+                    } catch (Exception e) {
+                        lastEx = e;
+                    }
+                }
+                String failDetail = lastEx != null
+                        ? lastEx.getClass().getSimpleName() + " " + lastEx.getMessage()
+                        : "tutti i tentativi falliti";
+                fail("import.fail.xml", failDetail);
+                throw new IllegalStateException("Impossibile leggere XML da '" + ordStr + "': "
+                        + failDetail, lastEx);
+            }
+        }
+        try (InputStream in = BAm8xImportService.class.getResourceAsStream(DEFAULT_RESOURCE)) {
+            if (in == null)
+                throw new IllegalStateException("Risorsa default non trovata: " + DEFAULT_RESOURCE);
+            return Am8xXmlParser.parseStream(in);
+        } catch (Exception e) {
+            fail("import.fail.xml", e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * Espande gli ORD supportati verso File station-side usando solo API Niagara.
+     * Il caso primario e supportato dal wizard e': file:^shared/nome.xml.
+     */
+    /** Vedi {@link Am8xFilePaths#candidatesFor(File, String)} per la semantica di '^'. */
+    private static File[] buildFsFileCandidates(String ordStr) {
+        java.util.List<File> paths = Am8xFilePaths.candidatesFor(Sys.getStationHome(), ordStr);
+        String clean = stripHostOrdPrefix(ordStr).replace('\\', '/');
+        if (clean.startsWith(NIAGARA_USER_HOME_ORD_PREFIX)) {
+            addNiagaraUserHomeFileCandidate(paths, clean.substring(NIAGARA_USER_HOME_ORD_PREFIX.length()));
+        }
+        return paths.toArray(new File[0]);
+    }
+
+    /** Genera varianti dell'ORD da provare in sequenza. */
+    private static String[] buildOrdCandidates(String original) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        addOrdCandidate(out, original);
+        // Se ha local:| o station:| prefisso, prova anche senza
+        if (original.startsWith(LOCAL_ORD_PREFIX)) {
+            addOrdCandidate(out, original.substring(LOCAL_ORD_PREFIX.length()));
+        }
+        if (original.startsWith(STATION_HOST_ORD_PREFIX)) {
+            addOrdCandidate(out, original.substring(STATION_HOST_ORD_PREFIX.length()));
+        }
+        // Se NON ha prefisso ma ha file:, prova anche il contesto station esplicito.
+        if (original.startsWith("file:") && !original.contains("|")) {
+            addOrdCandidate(out, STATION_HOST_ORD_PREFIX + original);
+            addOrdCandidate(out, LOCAL_ORD_PREFIX + original);
+        }
+        if (isSimpleFileName(original)) {
+            addOrdCandidate(out, sharedFileOrd(original));
+        }
+        return out.toArray(new String[0]);
+    }
+
+    private static void addSharedFileCandidate(java.util.List<File> out, String relativePath) {
+        String safeRel = safeSharedRelativePath(relativePath);
+        if (safeRel.isEmpty()) return;
+        File sharedDir = getStationSharedDir();
+        out.add(new File(sharedDir, safeRel.replace('/', File.separatorChar)));
+    }
+
+    private static void addNiagaraUserHomeFileCandidate(java.util.List<File> out, String relativePath) {
+        String safeRel = safeSharedRelativePath(relativePath);
+        if (safeRel.isEmpty()) return;
+        out.add(new File(Sys.getNiagaraUserHome(), safeRel.replace('/', File.separatorChar)));
+    }
+
+    /**
+     * Directory dove doUploadXml scrive i file caricati dal Workbench.
+     *
+     * E' Sys.getStationHome() e basta: su Niagara 4.15 quella chiamata restituisce
+     * gia' la file space root della station, cioe' la cartella 'shared'. La versione
+     * precedente ci appendeva un altro "shared" e creava una <station>/shared/shared/
+     * annidata, dove i file finivano senza che l'ORD generato li ritrovasse.
+     * I file gia' finiti li' restano leggibili: vedi il candidato legacy in
+     * {@link #fsCandidatesFor(File, String)}.
+     */
+    private static File getStationSharedDir() {
+        return Sys.getStationHome();
+    }
+
+    private static String stripHostOrdPrefix(String ordStr) {
+        if (ordStr.startsWith(LOCAL_ORD_PREFIX)) {
+            return ordStr.substring(LOCAL_ORD_PREFIX.length());
+        }
+        if (ordStr.startsWith(STATION_HOST_ORD_PREFIX)) {
+            return ordStr.substring(STATION_HOST_ORD_PREFIX.length());
+        }
+        return ordStr;
+    }
+
+    private static String safeUploadFileName(String name) {
+        String safe = name == null ? "" : name.trim().replace('\\', '/');
+        int slash = safe.lastIndexOf('/');
+        if (slash >= 0) safe = safe.substring(slash + 1);
+        if (!isSimpleFileName(safe)) {
+            throw new IllegalArgumentException("nome file XML non valido: " + name);
+        }
+        return safe;
+    }
+
+    private static String safeSharedRelativePath(String relativePath) {
+        String safe = relativePath == null ? "" : relativePath.trim().replace('\\', '/');
+        while (safe.startsWith("/")) safe = safe.substring(1);
+        if (safe.indexOf(':') >= 0 || safe.equals(".") || safe.equals("..") || safe.startsWith("../")
+                || safe.contains("/../") || safe.endsWith("/..")) {
+            throw new IllegalArgumentException("percorso shared non valido: " + relativePath);
+        }
+        return safe;
+    }
+
+    private static boolean isSimpleFileName(String name) {
+        return name != null
+                && !name.isEmpty()
+                && !".".equals(name)
+                && !"..".equals(name)
+                && name.indexOf('/') < 0
+                && name.indexOf('\\') < 0
+                && name.indexOf(':') < 0;
+    }
+
+    /**
+     * ORD di un file nella shared dir della station. Niente segmento "shared/":
+     * '^' e' gia' la shared root, e aggiungerlo produceva un ORD che puntava a
+     * <station>/shared/shared/<file>. Gli ORD vecchi con "shared/" restano
+     * risolvibili: vedi {@link #fsCandidatesFor(File, String)}.
+     */
+    private static String sharedFileOrd(String fileName) {
+        return STATION_ORD_PREFIX + fileName;
+    }
+
+    private static void addOrdCandidate(java.util.List<String> out, String ord) {
+        if (ord != null && !ord.isEmpty() && !out.contains(ord)) out.add(ord);
+    }
+
+    private String safeOrd() {
+        try { return getNavOrd().toString(); } catch (Exception e) { return "<unmounted>"; }
+    }
+
+    /** Non lancia mai: un jar costruito fuori da Gradle deve comunque partire. */
+    private static String readVersionBanner() {
+        Properties p = new Properties();
+        try (InputStream in = BAm8xImportService.class.getResourceAsStream("version.properties")) {
+            if (in != null) p.load(in);
+        } catch (Exception ignore) {}
+        return p.getProperty("moduleVersion", "unknown")
+             + " build " + p.getProperty("gitCommit", "unknown")
+             + " (" + p.getProperty("buildTime", "unknown") + ")";
+    }
+
+    ////////////////////////////////////////////////////////////////
+    // Boilerplate
+    ////////////////////////////////////////////////////////////////
+
+    @Override
+    public Type getType() { return TYPE; }
+    public static final Type TYPE = Sys.loadType(BAm8xImportService.class);
+
+    @Override
+    public BIcon getIcon() { return ICON; }
+    private static final BIcon ICON =
+            BIcon.make("module://am8xControl/img/am8xNetwork.png");
+}
